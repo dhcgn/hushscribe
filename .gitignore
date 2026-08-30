@@ -1,3 +1,16 @@
 
 # APM dependencies
 apm_modules/
+
+# Local development credentials — NEVER commit these.
+# .env is the canonical file; env.js is what the browser can actually read
+# until the Vite build lands (see ARCHITECTURE.md §8.2).
+.env
+.env.*
+!.env.example
+env.js
+
+node_modules/
+dist/
+playwright-report/
+test-results/

@@ -165,23 +165,58 @@ bookmark link does not silently spend a request.
 ~1 s handshake for a long-lived secret sitting in `localStorage` — a bad deal for a
 security-first app. Revisit only if reload latency is measured to be a real problem.
 
-### 3.3 Transcription call — always timestamped
+### 3.3 Transcription call — timestamped when it can be
 
 ```js
-const transcript = await client.audio.transcriptions.create({
-  model,                            // 'whisper-large-v3' (default) | 'voxtral-mini-3b'
-  file,                             // File / Blob straight from the drop event
-  language,                         // REQUIRED — see below
-  prompt,                           // optional vocabulary / style bias
-  response_format: 'verbose_json',  // → transcript.segments[{ start, end, text }]
+const res = await client.audio.transcriptions.create({
+  model,                                        // 'whisper-large-v3' | 'voxtral-mini-3b'
+  file,                                         // File / Blob from the drop event
+  ...(language && { language }),                // optional
+  ...(prompt && { prompt }),                    // optional, ≤ 224 tokens (§3.4)
+  response_format: language ? 'verbose_json' : 'json',
 });
 ```
 
-> ⚠️ **`verbose_json` makes `language` mandatory.** The Privatemode docs state that setting
-> `language` is a *prerequisite* for `verbose_json`. Because hushscribe always wants
-> timestamps, the language field is a **required input**, not an optional refinement — it
-> cannot fall back to auto-detection. The UI enforces this: the transcribe button stays
-> disabled until a language is chosen, seeded from `hc.lang` or `en` on first run.
+Only `model` and `file` are required by the API. `language` is optional — but the reference
+adds: *"`verbose_json` requires setting `language`."* Since timestamps come only from
+`verbose_json`, that produces one coupling worth stating precisely:
+
+| Language | `response_format` | You get |
+|---|---|---|
+| set | `verbose_json` | `segments[{start, end, text}]` → captions, seek, `.vtt` / `.srt` |
+| empty | `json` | `text` only — auto-detected language, no timestamps |
+
+**hushscribe degrades rather than demands.** Leaving language on auto-detect is a legitimate
+choice the API supports, so the UI does not block on it; it explains what the choice costs
+and takes the plain-text path. One consequence to keep honest: a result card with no
+segments offers only `.txt` and `.json`, because there are no timestamps to write into a
+subtitle file.
+
+Auto-detect is still worth discouraging on quality grounds — the docs note a wrong guess
+degrades both accuracy and latency — but that is advice, not a gate.
+
+### 3.4 Prompt budget
+
+Whisper accepts at most **224 prompt tokens** and silently discards the remainder, so an
+over-long prompt fails invisibly: no error, just a partly-ignored instruction. The only
+useful signal is an early one, shown live under the field:
+
+| Characters | State |
+|---|---|
+| ≤ 300 | green |
+| 301–360 | amber — "nearing the 224-token limit" |
+| > 360 | red — "only the first 224 tokens are used" |
+
+Counted in **characters, not tokens**, because a real token count means shipping a
+tokenizer. The thresholds are deliberately conservative: 224 tokens is roughly 900 English
+characters, so warning at 300 fires long before truncation actually bites. That is the right
+direction to be wrong in — a prompt this long is already past the point of being a useful
+style hint, and a false alarm costs nothing while silent truncation costs a transcript.
+
+```js
+// ponytail: character thresholds, no tokenizer. Swap in a real count only if
+// someone hits truncation while the indicator still reads green.
+```
 
 Files are processed **one at a time, in order.** Sequential is simpler, gives honest
 progress, and avoids hammering rate limits.
@@ -262,19 +297,34 @@ cover the realistic range; the docs' own advice is "avoid low bit rates".
 
 Single screen, top to bottom:
 
-1. **Trust banner.** Before a key is entered: the claim from §1 plus links to the
+1. **The claim**, from §1 — the headline, and one set-apart line naming what confidential
+   computing adds over ordinary encryption: data stays unreadable *while it is being used*.
+2. **Proof row.** One line, collapsed by default: a green check and the digest's first eight
+   hex characters — `✓ sha256:9f2c4a1e`. Expanding it (a native `<details>`, same idiom as
+   history) gives the full measurement, the verification time, and links to the
    [attestation docs](https://docs.privatemode.ai/security/attestation/overview) and
    [SDK source verification](https://docs.privatemode.ai/reference/sdk/verify-from-source).
-   After `verify()` succeeds: the verified **manifest digest**, rendered as the proof — *this
-   specific enclave measurement is where your audio went* — plus a one-line link to §1.3's
-   limits. The disclosure is part of the claim, not a footnote behind a toggle.
-2. **API key** — password field, "Verify & save", saved/cleared state.
-3. **Model** — `whisper-large-v3` (default) / `voxtral-mini-3b`.
-4. **Language** — required (§3.3), remembered.
-5. **Prompt** — textarea plus saved prompts (save / pick / delete).
-6. **Dropzone** — full-page drop target, also click-to-browse `<input type="file" multiple>`.
-7. **Results** — one card per file (§5.1).
-8. **Data** — export all / clear all (§7.3).
+
+   Earlier this was a full-width panel with the digest set large, on the theory that the
+   proof *is* the product. It read as clutter: a 71-character hash is not something anyone
+   reads, and sizing it like a headline made the page feel heavier without making it more
+   credible. Eight characters are enough to recognise a measurement you have seen before;
+   the rest is one click away for the one time you actually compare it. Being checkable
+   matters, being loud about it does not.
+
+   Colour carries one meaning each: **green is verified** (this row, the header chip), blue
+   stays interactive (buttons, links, the active segment).
+3. **API key** — password field, "Verify & save", saved/cleared state.
+4. **Model** — `whisper-large-v3` (default) / `voxtral-mini-3b`.
+5. **Language** — optional, remembered. The empty option reads *"auto-detect (no
+   timestamps)"*, so the cost of leaving it blank is on the control itself rather than in
+   help text (§3.3).
+6. **Prompt** — textarea plus saved prompts (save / pick / delete), with the live budget
+   indicator (§3.4).
+7. **Dropzone** — full-page drop target, also click-to-browse `<input type="file" multiple>`.
+8. **Results** — one card per file (§5.1).
+9. **History** — the last 20 transcripts (§5.2).
+10. **Data** — export all / clear all (§7.3).
 
 ### 5.1 Timestamped result card
 
@@ -297,6 +347,69 @@ here: WebVTT is a native platform feature and it is already exactly the format w
 **Skipped:** waveform preview, speaker colours, editable transcripts, progress percentages
 (the API does not stream — a spinner is the honest indicator).
 
+### 5.2 History
+
+The last 20 transcripts, newest first, as native `<details>` rows — no accordion script, no
+disclosure library. Each expands to the timestamped segment list plus the same four export
+buttons and a per-entry delete.
+
+**Media files are never stored.** They exist as an object URL for exactly as long as the tab
+that received them, and nothing writes them to disk. So history entries have **no player**,
+and the same `segRows()` that renders seek buttons in a live result card renders plain rows
+here — one function, one branch on whether a player exists. The UI says this out loud rather
+than leaving a user to wonder why yesterday's transcript has no audio: the absence is the
+feature.
+
+This makes the storage asymmetry explicit and intentional: **text persists, audio never
+does.** A transcript is small, useful later, and already left the enclave. A recording is
+large, is the sensitive artifact, and has no reason to outlive the tab.
+
+---
+
+### 5.3 Help for non-technical users
+
+The intended user is a therapist, journalist, clinician, or lawyer with a recording they
+currently cannot transcribe anywhere — not a developer. The page originally failed them at
+the very first step: it demanded a "Privatemode API key" and did not say where to get one.
+
+No tour library, no modal wizard, no separate help page nobody clicks. Three things instead:
+
+**A way in.** Every mention of the API key links to `portal.privatemode.ai`. The single
+highest-value fix in this section, and it is one anchor tag.
+
+**A three-step walkthrough**, as a `<details>` above the form: get a key → verify → drop a
+file. It is **open on first visit and collapsed afterwards**, driven by whether a key has
+ever been saved:
+
+```js
+$('guide').open = !load(K.key, '');
+```
+
+No dismissed-flag to store, nothing to go stale, and someone who clears their data gets the
+introduction again — which is exactly when they need it. Numbered, because this genuinely is
+a sequence: order carries information the reader needs.
+
+**Plain-language disclosures** next to each piece of jargon — *"Where do I get this?"*,
+*"Which should I pick?"*, *"Why does the language matter?"*, *"What goes in here?"* — using
+the same native `<details>` idiom as history and the proof row. Expert users never open them;
+the page stays uncluttered for both audiences.
+
+Labels were rewritten for the same reason. `whisper-large-v3` became **"Whisper large-v3 —
+best accuracy"**; the model IDs still appear in history metadata where they are useful. The
+biggest change is `prompt`, which is AI jargon describing a mechanism rather than a purpose:
+
+| Before | After |
+|---|---|
+| "Prompt — bias the model toward your vocabulary" | "Names and spellings *(optional)*" |
+| placeholder: *"Transcript of a product meeting discussing Privatemode, vLLM…"* | placeholder: *"Yusuf Okonkwo, Dr. Bergström, the Halvorsen case, MRI, T-cell count"* |
+
+The new placeholder teaches the feature by showing it. Someone reading the old one had to
+already know what a prompt was to guess why they might write one.
+
+The security explanations get the same treatment — "sealed machine", "scrambled here on your
+device" — while §1's precise wording stays in the proof row's expanded detail for readers who
+want it. Both are true; they are pitched at different readers.
+
 ---
 
 ## 6. Testing
@@ -315,7 +428,7 @@ npm run test:ui   # playwright --ui, for debugging a failing GUI test
 
 | Layer | Tool | Covers |
 |---|---|---|
-| **Unit** | **Vitest** | `gate.js` admission rules (every format × size boundary), `segments.js` VTT/SRT/text rendering, timestamp formatting, storage export/import shape. |
+| **Unit** | **Vitest** | `gate.js` admission rules (every format × size boundary), `segments.js` VTT/SRT/text rendering, timestamp formatting, prompt-budget thresholds (§3.4), storage export shape. |
 | **GUI / e2e** | **Playwright** | Real Chromium against the real built page: drop a fixture file, fill the form, assert the segment list renders, click a segment and assert the player seeks, click export and assert the downloaded bytes, clear-all and assert `localStorage` is empty. |
 
 Vitest is free — Vite is already the build tool, so it is config-free and shares the same
@@ -496,11 +609,14 @@ Pages is not just *adequate* here, it actively supports the claim in §1:
 
 - **Nothing to log.** We could not retain user data if we wanted to; there is no server-side
   code to run. Static hosting is the strongest form of "we don't have your audio."
-- **The deployed bytes are traceable.** Pages publishes from a public repo through a public
-  Actions run. Anyone can check that the page they loaded was built from the commit they
-  audited — which is the same argument the SDK's
+- **The deployed bytes are traceable.** Pages publishes from a public repo
+  ([dhcgn/hushscribe](https://github.com/dhcgn/hushscribe)) through a public Actions run.
+  Anyone can check that the page they loaded was built from the commit they audited — the
+  same argument the SDK's
   [reproducible build](https://docs.privatemode.ai/reference/sdk/verify-from-source) makes
-  one layer down.
+  one layer down. The page links to its own repository in the footer and from the expanded
+  proof row, so the chain is walkable without leaving the app: **verify the enclave → verify
+  the SDK → read this page's source.** A trust claim nobody can trace is just a slogan.
 - **Free TLS**, and *Enforce HTTPS* stays on. WebAssembly, `crypto.subtle`, and object URLs
   all require a secure context, so this is a hard requirement, not a nicety.
 
@@ -552,6 +668,38 @@ jobs:
 
 No repository secrets are involved: the build takes no key, and the only credential the app
 ever handles is the one the user types into their own browser.
+
+### 8.2 Development credentials
+
+Typing an API key into every fresh browser profile gets old fast, so `.env` holds one:
+
+```
+PRIVATEMODE_AI_API_KEY=pm-…
+```
+
+`.env` is gitignored, `.env.example` is committed, and the key is used for exactly one
+thing: **prefilling the API key field**. It is never auto-verified and never written to
+`localStorage` on the developer's behalf.
+
+> ⚠️ **A key baked into a static bundle is a published key.** This app deploys to a public
+> GitHub Pages site, so anything reachable from the built JavaScript is readable by everyone.
+> The dev key must never survive `npm run build`.
+
+Two mechanisms, one now and one later:
+
+| | Today (no build step) | Once Vite lands |
+|---|---|---|
+| Source | `.env` | `.env` |
+| Bridge | `node make-env.mjs` writes `env.js`, loaded by an optional `<script src="env.js">` that 404s harmlessly when absent | `VITE_PRIVATEMODE_AI_API_KEY`, read as `import.meta.env.DEV && import.meta.env.VITE_…` |
+| Why it can't leak | `env.js` is gitignored and simply does not exist in `dist/` | Vite substitutes `import.meta.env.DEV` with `false` in production and dead-code-eliminates the branch |
+
+Both are gitignored (`.env`, `.env.*`, `env.js`), with `!.env.example` re-included.
+
+The deploy workflow (§8.1) never sees a key, so there is no path by which one reaches the
+published site. **CI check worth adding before the first deploy:** grep `dist/` for `pm-` and
+fail the build on a hit. Cheap, and it turns a policy into an enforced invariant.
+
+`make-env.mjs` is deleted the day Vite arrives — it exists only to bridge a gap.
 
 ### CSP
 
@@ -629,12 +777,19 @@ a two-hour recording.**
 | Deploy via `deploy-pages`, not a `gh-pages` branch | Official actions, no third-party deploy step touching the artifact. |
 | No framework | One screen, one form, one list. |
 | Vite, not raw `<script>` + importmap | ESM + peer dep + Wasm sidecar, all of which must be same-origin. |
-| Always `verbose_json` | Timestamps are a core feature, so pay the cost of a required language field once. |
+| `verbose_json` only when a language is set | The API couples them. Degrade to plain text rather than making an optional field mandatory. |
+| Prompt budget counted in characters | A tokenizer to police a 224-token cap is more code than the warning is worth. |
 | Native `<track>` + WebVTT for captions | The browser already renders subtitles. No caption library. |
 | Vitest + Playwright, nothing between | Pure logic without a browser, real DOM in a real browser, no jsdom middle ground. |
 | One-line `__HC_CLIENT` seam | Testable GUI with zero mock code in the shipped bundle. |
 | E2E runs against `dist/` via `vite preview` | Tests the artifact that actually deploys. |
 | `localStorage`, not IndexedDB | Five small values and a capped list. Marked for upgrade. |
+| History stores text, never media | The transcript is small and useful later; the recording is the sensitive artifact and has no reason to outlive the tab. |
+| Native `<details>` for history rows and the proof | The browser already has a disclosure widget; one idiom for both. |
+| Proof collapsed to `✓ sha256:9f2c4a1e` | Eight characters identify a measurement. Nobody reads 71, and setting them large made the page heavy, not trustworthy. |
+| Inline `<details>` help, no tour library | A tour is a third-party script with full page access (§1.2) that everyone dismisses. Disclosures cost nothing to the people who skip them. |
+| Walkthrough opens iff no key was ever saved | Correct for first-timers and for anyone who cleared their data, with no dismissed-flag to store or go stale. |
+| Dev key via `.env` → `env.js` | Gitignored, absent from `dist/`, and replaced by `import.meta.env.DEV` once Vite lands. |
 | Export excludes the key by default | An export file travels; `localStorage` does not. |
 | Key in URL *fragment* | Never reaches a server or a log. A query string would. |
 | Sequential transcription | Honest progress, no rate-limit games, less code. |
@@ -646,9 +801,12 @@ a two-hour recording.**
 
 ## 11. References
 
+- **This project:** [github.com/dhcgn/hushscribe](https://github.com/dhcgn/hushscribe)
+
 - [Privatemode JavaScript SDK](https://docs.privatemode.ai/reference/sdk/) — `npm i privatemode-ai`
 - [SDK client API](https://docs.privatemode.ai/reference/sdk/client) — `PrivatemodeAIOptions`, `verify()`, `refreshSecret()`
 - [Verify the SDK from source](https://docs.privatemode.ai/reference/sdk/verify-from-source)
-- [Speech-to-text guide](https://docs.privatemode.ai/guides/stt/) — formats, limits, `language`, `prompt`, `verbose_json`
+- [Speech-to-text guide](https://docs.privatemode.ai/guides/stt/) — formats, limits, `language`, `prompt`
+- [Speech-to-text API reference](https://docs.privatemode.ai/reference/speech-to-text/) — which fields are actually required, and the `verbose_json` ↔ `language` coupling
 - [Models](https://docs.privatemode.ai/models/overview) — `whisper-large-v3`, `voxtral-mini-3b`
 - [Remote attestation](https://docs.privatemode.ai/security/attestation/overview) — the manifest and evidence
