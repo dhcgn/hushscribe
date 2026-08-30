@@ -227,8 +227,16 @@ Then a refresh loop, because the encryption secret expires:
 setInterval(() => client.refreshSecret().catch(showError), 5 * 60_000);
 ```
 
-`verify()` runs once per session on key entry, behind an explicit user action, so opening a
-bookmark link does not silently spend a request.
+`verify()` runs on key entry and **automatically on load whenever a key is already stored**,
+so the page is ready to take a file instead of demanding a click that has only one sensible
+answer. Attestation is a handshake, not an inference request, so it costs nothing but a round
+trip.
+
+It is not free of consequence, though: **opening the page now contacts Privatemode**, where
+before it was silent until you acted. No audio and no transcript are involved — it is the
+same class of metadata already disclosed in §1.3 (that you made a request, when, from which
+IP) — but the trigger moved from your click to page load, and that is worth stating rather
+than letting it pass as a UX tweak.
 
 **Skipped:** `exportSecret()` / `importSecret()` secret caching across reloads. It trades a
 ~1 s handshake for a long-lived secret sitting in `localStorage` — a bad deal for a
@@ -477,17 +485,27 @@ large, is the sensitive artifact, and has no reason to outlive the tab.
 ### 5.4 Compact view
 
 One header toggle switches between **comfortable** (default) and **compact**, remembered in
-`hc.view`. Compact makes the page ~36% shorter.
+`hc.view`. Compact makes the page **~58% shorter** (2951px → 1236px, measured).
 
 It is driven entirely by CSS from a `data-view` attribute on `<html>`, so the JavaScript only
 flips an attribute and a label. What gets hidden is decided by one marker class, `prose`, on
 the teaching material: the hero copy, the walkthrough, and the four help disclosures.
 
-**What compact deliberately does not hide:** the wrong-language warning, the per-minute rate,
-the attestation row, section labels, and every status message. `prose` marks explanation, not
-anything a user needs in order to judge what the tool is about to do. **A denser layout must
-not become a less honest one** — the temptation to hide a warning because it is long is
-exactly the thing §1.3 exists to resist. An e2e test asserts each of those stays visible.
+Compact additionally drops descriptions and status chatter (`.note:not(.warn)`), the dropzone
+blurb, and the header seal chip — the proof row already reports the same state and says more,
+so two indicators were one too many. The **API key field hides once a key is stored**
+(`data-key="saved"`): it is a question, and it stops needing to be asked once answered.
+
+**What compact never hides:** the wrong-language warning, the per-minute rate, the
+attestation row, and any error. `prose` marks explanation, not anything a user needs in order
+to judge what the tool is about to do. **A denser layout must not become a less honest one.**
+The warning gets *shorter*, not absent — a `.dense` one-liner replaces the paragraph — because
+the temptation to drop a warning for being long is exactly what §1.3 exists to resist. E2e
+tests assert each of these.
+
+One safety interlock: a failed verification sets `data-key="none"`, so a stored key that has
+stopped working brings the field back even in compact. Otherwise a bad key would be
+unfixable without first discovering the view toggle.
 
 **Why `public/view-init.js` exists.** The CSP is `script-src 'self'` with no `'unsafe-inline'`
 (§8.1), so the usual anti-flash trick — a tiny inline script in `<head>` — is unavailable.

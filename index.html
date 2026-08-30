@@ -94,7 +94,7 @@
     </p>
   </details>
 
-  <section class="panel">
+  <section class="panel" id="access">
     <div class="tag">Access</div>
     <div class="field">
       <label for="key">Privatemode API key</label>
@@ -156,11 +156,12 @@
           <option value="it">it · Italian</option>
           <option value="nl">nl · Dutch</option>
         </select>
-        <p class="note warn">
+        <p class="note warn prose">
           Pick the language actually spoken. Given the wrong one, Whisper does not fail
           &mdash; it <b>translates</b> into the language you chose, and the result reads
           like a plausible transcript that is not what was said.
         </p>
+        <p class="note warn dense">Wrong language &rarr; Whisper translates instead of transcribing.</p>
       </div>
     </div>
     <details class="help prose">
