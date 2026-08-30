@@ -1,16 +1,17 @@
-
 # APM dependencies
 apm_modules/
 
 # Local development credentials — NEVER commit these.
-# .env is the canonical file; env.js is what the browser can actually read
-# until the Vite build lands (see ARCHITECTURE.md §8.2).
 .env
 .env.*
 !.env.example
-env.js
 
 node_modules/
 dist/
 playwright-report/
 test-results/
+
+# ~84 MB of real speech for the opt-in smoke suite (npm run test:smoke).
+# Deliberately kept out of git: CI never uses it, and the GUI suite generates
+# its own fixtures. Delete this line if you want it versioned.
+test-data/

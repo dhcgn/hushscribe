@@ -1,0 +1,56 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; always finish the newest one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Gate the deploy on the tests, so main can never publish a broken page.
+      - run: npm run test:unit
+
+      - name: Build
+        # A project site lives at /<repo>/. Set BASE_PATH to / if you move this
+        # to a custom domain.
+        run: npm run build
+        env:
+          BASE_PATH: /hushscribe/
+
+      - name: Assert no API key reached the bundle
+        run: |
+          if grep -rIlE 'pm-[A-Za-z0-9_-]{12,}' dist/; then
+            echo "::error::An API-key-shaped string is present in dist/. Refusing to deploy."
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

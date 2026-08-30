@@ -113,24 +113,34 @@ that ever leaves the tab, and it is ciphertext.
 ### 3.1 Files
 
 ```
-index.html            # markup + CSP meta + all styles
-src/app.js            # UI, drop, storage, client lifecycle, transcribe loop
-src/segments.js       # pure: segments → VTT / SRT / plain text  (unit-tested)
-src/gate.js           # pure: format + size admission rules      (unit-tested)
-src/reencode.js       # Stage 2 only — dynamic import(), pulls in ffmpeg.wasm
-vite.config.js
-package.json
+index.html                  # markup only — no inline styles or scripts (§8.1)
+src/app.js                  # UI, storage, client lifecycle, transcribe loop
+src/gate.js                 # pure: format + size admission        (39 unit tests)
+src/segments.js             # pure: VTT/SRT/text, prompt budget    (40 unit tests)
+src/style.css               # all styles; hashed and minified by Vite
+src/reencode.js             # stage 2 — dynamic import(), pulls in ffmpeg.wasm
 
-test/gate.test.js         # vitest
-test/segments.test.js     # vitest
-test/e2e/*.spec.js        # playwright, drives the real UI
-test/e2e/fake-client.js   # canned transcription responses (never shipped, §6.2)
+vite.config.js              # base path, wasm plugin, CSP injection, dev-key mapping
+playwright.config.js        # default suite; excludes @smoke
+playwright.smoke.config.js  # opt-in real-enclave suite
+
+test/gate.test.js           # vitest
+test/segments.test.js       # vitest
+test/e2e/app.spec.js        # playwright, drives the real UI      (20 tests)
+test/e2e/fake-client.js     # stand-in client + generated fixtures (never shipped)
+test/e2e/smoke.spec.js      # @smoke — real key, real enclave, real money
+
 .github/workflows/ci.yml
+.github/workflows/deploy.yml
 ```
 
 `segments.js` and `gate.js` exist as separate modules **for one reason: they are the logic
 worth testing without a browser.** Everything else is DOM wiring that Playwright covers.
 That is the whole design rationale for the file split — not layering for its own sake.
+
+`style.css` moved out of `index.html` (where §3.1 originally put it) once the CSP became
+real: Vite hashes and minifies a linked stylesheet, and `style-src 'self'` forbids the
+inline `<style>` block that would otherwise have to carry it.
 
 **Skipped:** a framework, a router, a state library, a CSS framework. The UI is a form, a
 dropzone, a player, and a list.
@@ -142,9 +152,9 @@ import { PrivatemodeAI } from 'privatemode-ai';
 
 const client = new PrivatemodeAI({
   apiKey,
-  dangerouslyAllowBrowser: true,          // required in browsers; see §1.3
-  browserWasmURL: './privatemode.wasm',   // same-origin, never a CDN
-  expectedWasmHash: WASM_SHA256,          // pinned at build time
+  dangerouslyAllowBrowser: true,                                 // required in browsers; §1.3
+  browserWasmURL: `${import.meta.env.BASE_URL}privatemode.wasm`, // same-origin, never a CDN
+  expectedWasmHash: __WASM_SHA256__,                             // pinned at build time
 });
 
 const { manifest } = await client.verify();   // rendered as proof in the UI (§5)
@@ -477,37 +487,52 @@ Why this and not a `?mock=1` URL flag or network interception:
 - **Zero added attack surface.** An attacker who can set a global on your page can already do
   anything; the hook grants nothing new.
 
-A separate `@smoke`-tagged Playwright spec exercises the *real* SDK end-to-end. It is skipped
-unless `HC_API_KEY` is present in the environment, so it runs on demand locally and on a
-scheduled CI job with a repository secret — never on pull requests from forks.
+A separate `@smoke` spec exercises the *real* SDK against a real enclave, transcribing the
+speeches in `test-data/`. It lives behind its own `playwright.smoke.config.js`, and the
+default config excludes `@smoke` outright.
+
+**Having a key is deliberately not enough to opt in.** The first version skipped only when
+no key was present — which meant any developer with a working `.env` would have `npm test`
+quietly spend real credit on the real API. Found by doing exactly that. Opting in is now an
+explicit command:
+
+```bash
+npm run test:smoke      # playwright test -c playwright.smoke.config.js
+```
+
+Never wire this into pull-request CI: fork PRs cannot read secrets, and every run costs
+money. A scheduled job with a repository secret is the right home if it ever needs one.
 
 ### 6.3 GitHub Actions
 
-One workflow, one job, identical to the local commands:
+Two workflows, both running the same commands a developer runs locally.
+
+**`ci.yml`** — every push and PR: `npm run test:unit` → `npm run build` → **key-leak check**
+→ `npm run test:e2e`. **`deploy.yml`** — `main` only: build, key-leak check, publish to Pages
+(§8.1). The report is uploaded on failure.
+
+The key-leak step is the one worth calling out:
 
 ```yaml
-# .github/workflows/ci.yml
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: npm ci
-      - run: npm run test:unit
-      - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e          # playwright starts `vite preview` itself
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with: { name: playwright-report, path: playwright-report/ }
+- name: Assert no API key reached the bundle
+  run: |
+    if grep -rIlE 'pm-[A-Za-z0-9_-]{12,}' dist/; then
+      echo "::error::An API-key-shaped string is present in dist/. Refusing to continue."
+      exit 1
+    fi
 ```
 
-Playwright's `webServer` config runs `vite preview` against `dist/`, so **e2e tests hit the
-real production bundle**, not a dev server with different module semantics. Same locally,
-same in CI, no branching on `process.env.CI`.
+It turns §8.2's policy into an enforced invariant. Verified against a negative control — a
+key string planted into a built bundle, to prove the grep is not passing vacuously. A check
+nobody has watched fail is not yet a check.
+
+Playwright's `webServer` runs `npm run build && npm run preview`, so **e2e tests hit the real
+production bundle** — the same artifact that deploys, at the same base path, with the same
+CSP. Same locally, same in CI, no branching on `process.env.CI`.
+
+`reuseExistingServer` is **off**, deliberately. With it on, a preview server left running
+from earlier silently serves a stale `dist/` and skips the rebuild — tests then pass against
+code that no longer exists. That cost real debugging time here. The rebuild is two seconds.
 
 **Skipped:** a matrix across browsers and OSes, visual regression snapshots, coverage
 gating. Chromium on Linux catches the bugs this app will actually have. Widen the matrix
@@ -709,10 +734,11 @@ GitHub Pages cannot set response headers, so the CSP ships as a `<meta http-equi
 ```
 default-src 'none';
 script-src 'self' 'wasm-unsafe-eval';
-style-src 'self' 'unsafe-inline';
+style-src 'self';
 img-src 'self' data:;
 media-src 'self' blob:;
-connect-src 'self' https://api.privatemode.ai <manifest-cdn-host>;
+connect-src 'self' https://api.privatemode.ai https://cdn.confidential.cloud
+            https://api.trustedservices.intel.com https://kdsintf.amd.com;
 worker-src 'self' blob:;
 base-uri 'none';
 form-action 'none';
@@ -727,9 +753,23 @@ unavoidable, since both the attestation verifier and ffmpeg are WebAssembly.
 > is the entire mitigation available on this host, and an invisible iframe of a page holding
 > an API key is worth blocking.
 
-> **TODO before first release:** run the app once with devtools open and pin the exact
-> manifest-CDN host the SDK fetches from, plus any host the ffmpeg worker needs. A CSP with a
-> guessed host in it is a CSP that gets loosened in a panic on launch day.
+**Hosts were extracted from the SDK's Wasm binary, not guessed** — the earlier TODO here is
+closed. The verifier makes its own `fetch` calls from inside Go, so they are invisible in the
+JavaScript and only turn up by reading the binary:
+
+| Host | Why |
+|---|---|
+| `api.privatemode.ai` | inference |
+| `cdn.confidential.cloud` | the signed manifest (`/privatemode/v2`) |
+| `api.trustedservices.intel.com` | Intel PCS — SGX/TDX attestation collateral |
+| `kdsintf.amd.com` | AMD KDS — SEV-SNP VCEK certificates |
+
+> ⚠️ **`style-src 'self'` forbids `style=""` attributes.** Four inline styles in `index.html`
+> silently broke layout in the built page while looking perfect in dev, because the CSP is
+> injected on build only. They are CSS classes now, and an e2e test fails on any console CSP
+> violation — it is far too easy to reintroduce one, and dev will never tell you.
+
+Never widen this policy to make an error disappear; narrow it if a host proves unused.
 
 ---
 

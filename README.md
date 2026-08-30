@@ -1,0 +1,86 @@
+# hushscribe
+
+**Transcribe confidential audio.** A static web page that transcribes recordings using
+[Privatemode.ai](https://docs.privatemode.ai/) confidential-computing inference.
+
+Your recording is encrypted before it leaves the browser tab and stays encrypted the whole
+way — *including while the model is transcribing it*. Nobody along the chain can read it:
+not the inference provider, not the cloud it runs on. Ordinary encryption protects data in
+transit and at rest; confidential computing keeps it unreadable while it is being used.
+
+There is no backend. Bring an API key, drop a file, get a timestamped transcript.
+
+→ **[ARCHITECTURE.md](ARCHITECTURE.md)** for how it works and why it is built this way.
+
+---
+
+## Quick start
+
+```bash
+npm ci
+npm run dev
+```
+
+Then open the page, paste a [Privatemode API key](https://portal.privatemode.ai), press
+**Verify & save**, and drop in an audio or video file.
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on :5173 |
+| `npm run build` | Static build into `dist/` |
+| `npm run preview` | Serve `dist/` on :4173, exactly as Pages will |
+| `npm test` | Unit tests, then the GUI suite |
+| `npm run test:unit` | Vitest — pure logic, no browser, fast |
+| `npm run test:e2e` | Playwright against the real production bundle |
+| `npm run test:ui` | Playwright's UI mode, for debugging a failing test |
+| `npm run test:smoke` | **Opt-in.** Transcribes `test-data/` against a real enclave. Costs credit. |
+
+No test needs an API key except `test:smoke`. The GUI suite injects a stand-in client at
+the single seam production code exposes, so no mock code ever ships.
+
+## Local development key
+
+```bash
+cp .env.example .env      # then paste your key
+```
+
+`.env` is gitignored. It prefills the key field during `npm run dev` and enables
+`test:smoke`. It is substituted with `''` in every build, and CI fails the pipeline if a
+key-shaped string appears in `dist/` — a bundle published to GitHub Pages is public.
+
+## Supported input
+
+`flac` `mp3` `mp4` `mpeg` `mpga` `m4a` `ogg` `wav` `webm` — up to **50 MB** and **1 hour**
+per file. Anything else is rejected with the reason. Automatic re-encoding is stage 2.
+
+Set a **language** to get timestamps, clickable segments, and `.vtt` / `.srt` subtitles;
+leave it on auto-detect and you get plain text. That coupling is the API's, not ours —
+`verbose_json` requires a language.
+
+## What is stored
+
+Everything lives in your browser's `localStorage` and nowhere else: the API key, saved
+prompts, your last 20 transcripts. **Media files are never stored** — they exist only in
+the tab you dropped them into, which is why history has no player. Export or delete it all
+from the page.
+
+## Deployment
+
+Push to `main`; GitHub Actions builds and publishes to Pages. `BASE_PATH` defaults to
+`/hushscribe/` for a project site — set it to `/` for a custom domain.
+
+## Verifying the claim
+
+1. **The enclave** — the page shows the attested measurement it verified against.
+2. **The SDK** — [reproducibly buildable](https://docs.privatemode.ai/reference/sdk/verify-from-source)
+   from `edgelesssys/privatemode-public`; the build pins its Wasm SHA-256.
+3. **This page** — you are reading its source. Pages publishes from this repo through a
+   public Actions run, so the bytes you load trace back to a commit you can audit.
+
+A trust claim nobody can trace is just a slogan.
+
+## Licence
+
+MIT

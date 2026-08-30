@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build
+
+      # A key baked into a static bundle deployed to a public Pages site is a
+      # published key. This turns that policy into an enforced invariant.
+      - name: Assert no API key reached the bundle
+        run: |
+          if grep -rIlE 'pm-[A-Za-z0-9_-]{12,}' dist/; then
+            echo "::error::An API-key-shaped string is present in dist/. Refusing to continue."
+            exit 1
+          fi
+          echo "No key-shaped strings in dist/."
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Playwright starts `vite preview` itself, so these run against the exact
+      # artifact that deploys — same command as locally, no CI-only branch.
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
