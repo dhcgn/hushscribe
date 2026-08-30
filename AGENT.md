@@ -75,6 +75,7 @@ Each of these cost real debugging time here. Don't rediscover them.
 | Wrong language | Whisper doesn't fail, it **translates** — fluent prose that isn't what was said. |
 | `style=""` attributes | Blocked in production. The CSP is injected on **build only**, so dev never shows the violation. An e2e test fails on any CSP console error. |
 | `reuseExistingServer` | Stays `false`. `preview` serves `dist/`; a stale server silently tests a bundle that no longer exists. |
+| Container vs codec | `.webm`/`.mp4`/`.ogg` may hold **audio only**. Never choose `<video>` vs `<audio>` by extension — probe the file (`probeMedia`), or an audio-only webm paints a black viewport. |
 | `FileList` | Live reference. Snapshot with `[...files]` before any `await`, or the picker's reset empties it underneath you. |
 | `clipboard.writeText` | Does **not** reject on an unfocused document — it hangs forever. Always race a timeout. |
 | Test locators | Never match on text that changes (`name: 'Copy'` stops matching at `'Copied'`). Use `data-act="…"`. |

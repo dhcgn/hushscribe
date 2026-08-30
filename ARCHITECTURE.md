@@ -410,6 +410,13 @@ Each finished file renders as:
 
 - A native `<video>` or `<audio>` element sourced from `URL.createObjectURL(file)` — the
   original dropped file, still local, never re-uploaded.
+
+  **Which of the two is decided by probing the file, not by its name.** `.webm`, `.mp4` and
+  `.ogg` are containers that may carry audio only; an audio-only `.webm` rendered as
+  `<video>` paints an empty black viewport above the controls, which is exactly what
+  shipped. `probeMedia()` loads metadata into a detached `<video>` and reads
+  `videoWidth`/`videoHeight` — zero means no video track. `gate.js` deliberately exposes no
+  `isVideo()`, because an extension names a container and cannot describe its contents.
 - **Captions via a native `<track>`.** `segments.js` renders the segments to WebVTT once;
   that VTT is attached as `<track default>` and the browser draws the subtitles itself. No
   caption library, no render loop.

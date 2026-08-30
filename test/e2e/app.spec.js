@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   LINES, MANIFEST, MEASUREMENT, PROOF_LINE,
-  installFakeClient, makeUndecodable, makeUnsupported, makeWav,
+  installFakeClient, makeUndecodable, makeUnsupported, makeWav, webm,
 } from './fake-client.js';
 
 const KEY = 'pm-test-key';
@@ -153,6 +153,46 @@ test.describe('transcription', () => {
     const card = page.locator('.card').first();
     await expect(card).toHaveClass(/bad/);
     await expect(card.locator('.card-chain')).toContainText('rate limited');
+  });
+});
+
+test.describe('player element', () => {
+  // .webm/.mp4/.ogg are containers. An audio-only .webm rendered as <video>
+  // paints an empty black viewport above the controls — the reported bug.
+  test('uses <audio> for an audio-only container', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(webm('audio-only'));
+
+    const card = page.locator('.card').first();
+    await expect(card.locator('audio')).toHaveCount(1);
+    await expect(card.locator('video')).toHaveCount(0);
+
+    // No black box: the element is controls-height, not a video viewport.
+    const h = await card.locator('audio').evaluate((a) => a.getBoundingClientRect().height);
+    expect(h).toBeLessThan(100);
+  });
+
+  test('uses <video> when the same container really has a video track', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(webm('with-video'));
+
+    const card = page.locator('.card').first();
+    await expect(card.locator('video')).toHaveCount(1);
+    await expect(card.locator('audio')).toHaveCount(0);
+    expect(await card.locator('video').evaluate((v) => v.videoHeight)).toBeGreaterThan(0);
+  });
+
+  test('still captions and seeks an audio-only container', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(webm('audio-only'));
+
+    const card = page.locator('.card').first();
+    await expect(card.locator('.seg')).toHaveCount(LINES.length);
+    await expect
+      .poll(() => card.locator('audio').evaluate((a) => a.textTracks[0]?.cues?.length ?? 0))
+      .toBe(LINES.length);
+    await card.locator('.seg').nth(2).click();
+    expect(await card.locator('audio').evaluate((a) => a.currentTime)).toBeCloseTo(4, 1);
   });
 });
 
@@ -399,7 +439,8 @@ test.describe('cost estimate', () => {
 
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
-    await expect(card.locator('.price')).toHaveText('');
+    // Nothing to say, so nothing is rendered — not an empty element.
+    await expect(card.locator('.price')).toHaveCount(0);
   });
 });
 

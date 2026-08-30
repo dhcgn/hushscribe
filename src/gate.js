@@ -40,8 +40,10 @@ export function gate({ name, size }) {
 
 // Formats the browser can play back inline. A file can be transcribable but not
 // playable (mpga), so the result card must not assume a working player.
+//
+// There is deliberately no isVideo() here. mp4, webm and ogg are containers that
+// may hold audio only, so the extension cannot tell you whether to render <video>
+// or <audio> — app.js probes the file itself.
 const PLAYABLE = ['mp3', 'mp4', 'm4a', 'ogg', 'wav', 'webm', 'flac'];
-const VIDEO = ['mp4', 'webm', 'mpeg'];
 
 export const isPlayable = (name) => PLAYABLE.includes(extensionOf(name));
-export const isVideo = (name) => VIDEO.includes(extensionOf(name));

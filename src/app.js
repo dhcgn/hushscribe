@@ -1,6 +1,6 @@
 import { PrivatemodeAI } from 'privatemode-ai';
 import './style.css';
-import { gate, isPlayable, isVideo } from './gate.js';
+import { gate, isPlayable } from './gate.js';
 import {
   clock, toVTT, toSRT, toTXT, activeIndex, promptBudget,
 } from './segments.js';
@@ -159,26 +159,31 @@ async function transcribe(file) {
   head.querySelector('.card-chain').append(el('span', { className: 'spin' }), ' transcribing');
   card.append(head);
 
+  // Ask the file what it contains. .webm, .mp4 and .ogg are containers that may
+  // hold audio only, so the extension cannot decide between <video> and <audio> —
+  // guessing wrong paints an empty black viewport above the controls.
+  const probe = await probeMedia(file);
+
   // A file can be transcribable but not playable (mpga), so never assume a player.
   let media = null;
   if (isPlayable(file.name)) {
-    media = el(isVideo(file.name) ? 'video' : 'audio', {
+    media = el(probe.hasVideo ? 'video' : 'audio', {
       src: trackUrl(URL.createObjectURL(file)),
       controls: true,
     });
     card.append(media);
   }
 
-  // Billing is per audio minute, so the cost is knowable the moment the browser
-  // reads the duration — which is long before the transcript comes back. Probed
-  // separately from playback: pricing a file does not require rendering it.
-  const priced = el('p', { className: 'price' });
-  card.append(priced);
-  probeDuration(file, media).then((seconds) => {
-    const line = estimateLine(seconds, $('model').value);
-    // No duration means no honest estimate, so say nothing at all.
-    if (line) priced.textContent = `${line} · estimate, ${PRICES_DATED} prices`;
-  });
+  // Billing is per audio minute, so the cost is knowable as soon as the browser
+  // has read the duration — long before the transcript comes back.
+  const line = estimateLine(probe.duration, $('model').value);
+  // No duration means no honest estimate, so say nothing at all.
+  if (line) {
+    card.append(el('p', {
+      className: 'price',
+      textContent: `${line} · estimate, ${PRICES_DATED} prices`,
+    }));
+  }
 
   // Timestamps come from verbose_json, which the API accepts only alongside a
   // language. No language → plain text. Degrade, don't demand. (§3.3)
@@ -245,23 +250,24 @@ async function transcribe(file) {
 }
 
 /**
- * Duration in seconds, or null if the browser cannot decode the container.
- * Reuses the visible player when there is one; otherwise probes with a detached
- * element, since a file we decline to render may still be priceable. Resolves
- * null rather than hanging when the format defeats the decoder.
+ * What the file actually holds: its duration, and whether there is a video track.
+ * A detached <video> reports videoWidth/Height of 0 for audio-only content, which
+ * is the only reliable way to tell — the extension names a container, not tracks.
+ *
+ * Resolves with nulls rather than hanging when the format defeats the decoder, so
+ * an undecodable file costs a bounded wait and simply gets no estimate.
  */
-function probeDuration(file, existing) {
+function probeMedia(file) {
   return new Promise((resolve) => {
-    const probe = existing ?? el('audio', { preload: 'metadata', src: URL.createObjectURL(file) });
-    const done = (v) => {
-      clearTimeout(timer);
-      if (!existing) URL.revokeObjectURL(probe.src);
-      resolve(v);
-    };
-    const timer = setTimeout(() => done(null), 5000);
-    if (probe.readyState >= 1) return done(probe.duration);
-    probe.addEventListener('loadedmetadata', () => done(probe.duration), { once: true });
-    probe.addEventListener('error', () => done(null), { once: true });
+    const url = URL.createObjectURL(file);
+    const probe = el('video', { preload: 'metadata', src: url });
+    const done = (v) => { clearTimeout(timer); URL.revokeObjectURL(url); resolve(v); };
+    const timer = setTimeout(() => done({ duration: null, hasVideo: false }), 5000);
+    probe.addEventListener('loadedmetadata', () => done({
+      duration: probe.duration,
+      hasVideo: probe.videoWidth > 0 && probe.videoHeight > 0,
+    }), { once: true });
+    probe.addEventListener('error', () => done({ duration: null, hasVideo: false }), { once: true });
   });
 }
 

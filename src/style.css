@@ -261,7 +261,6 @@ button.link {
 
 /* ── cost estimates ─────────────────────────────────────────────────── */
 .price { font: 400 12px/1.5 var(--mono); color: var(--slate); margin: 7px 0 0; }
-.card .price:empty { display: none; }
 .credit {
   border-left: 2px solid var(--seal); padding-left: 14px;
   margin: 0 0 20px !important; color: var(--ink) !important;

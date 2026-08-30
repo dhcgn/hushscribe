@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FORMATS, MAX_BYTES, extensionOf, gate, isPlayable, isVideo } from '../src/gate.js';
+import { FORMATS, MAX_BYTES, extensionOf, gate, isPlayable } from '../src/gate.js';
 
 const file = (name, size = 1024) => ({ name, size });
 
@@ -65,9 +65,10 @@ describe('playability', () => {
   it.each(['mp3', 'wav', 'ogg', 'm4a', 'webm', 'mp4'])('plays %s', (ext) =>
     expect(isPlayable(`a.${ext}`)).toBe(true));
 
-  it.each(['mp4', 'webm', 'mpeg'])('treats %s as video', (ext) =>
-    expect(isVideo(`a.${ext}`)).toBe(true));
-
-  it.each(['mp3', 'wav', 'flac'])('treats %s as audio', (ext) =>
-    expect(isVideo(`a.${ext}`)).toBe(false));
+  // No isVideo(): mp4/webm/ogg are containers that may hold audio only, so the
+  // name cannot decide the element. app.js probes the file (see probeMedia).
+  it('exposes no extension-based video test', async () => {
+    const gate_ = await import('../src/gate.js');
+    expect(gate_.isVideo).toBeUndefined();
+  });
 });

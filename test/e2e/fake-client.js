@@ -151,3 +151,9 @@ export function makeUndecodable(name = 'garbled.mp3') {
   writeFileSync(path, Buffer.from('not actually audio, just bytes with an .mp3 name'));
   return path;
 }
+
+/** Real webm fixtures: one audio-only, one with a video track. Committed rather
+ *  than generated, because the bug they guard against is only reachable with a
+ *  genuine container — an extension cannot tell you what is inside one. */
+export const webm = (which) =>
+  join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${which}.webm`);

@@ -13,6 +13,35 @@ There is no backend. Bring an API key, drop a file, get a timestamped transcript
 → **[ARCHITECTURE.md](ARCHITECTURE.md)** for how it works and why it is built this way.
 → **[AGENT.md](AGENT.md)** if you are an AI agent working on this repo.
 
+<p align="center">
+  <img src="docs/screenshots/result.png" width="880"
+       alt="A finished transcript: the audio player, the estimated cost, and a clickable timestamped segment list with .vtt, .srt, .txt, .json, Copy and Redo buttons.">
+</p>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/full.png" width="100%"
+           alt="The full view, showing the headline, the explanation of confidential computing, the attestation row, and the API key field.">
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/screenshots/compact.png" width="100%"
+           alt="The compact view, with the explanatory text removed and the API key field hidden because a key is already stored.">
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <b>Full view.</b> Explains itself: what confidential computing adds, where to get a
+      key, which model to pick, and what a wrong language does to your transcript.
+    </td>
+    <td valign="top">
+      <b>Compact view</b> &mdash; about 58% shorter, remembered across visits. The
+      explanations go; the attestation row, the per-minute rate, and the wrong-language
+      warning stay. A denser layout must not become a less honest one.
+    </td>
+  </tr>
+</table>
+
 ---
 
 ## Built on Privatemode, by Edgeless Systems
