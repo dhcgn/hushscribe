@@ -56,7 +56,12 @@ jobs:
             exit 1
           fi
 
+      # enablement turns Pages on via the API if it is not already configured.
+      # Without it the first deploy of a fresh repo fails with "Get Pages site
+      # failed", and the fix is a manual settings click nobody documents.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
