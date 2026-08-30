@@ -3,6 +3,19 @@
 **Transcribe confidential audio.** A static web page that transcribes recordings using
 [Privatemode.ai](https://docs.privatemode.ai/) confidential-computing inference.
 
+<p align="center">
+  <a href="https://github.com/dhcgn/hushscribe/actions/workflows/ci.yml"><img
+     src="https://github.com/dhcgn/hushscribe/actions/workflows/ci.yml/badge.svg"
+     alt="CI status"></a>
+  <a href="https://github.com/dhcgn/hushscribe/actions/workflows/deploy.yml"><img
+     src="https://github.com/dhcgn/hushscribe/actions/workflows/deploy.yml/badge.svg"
+     alt="GitHub Pages deployment status"></a>
+  <a href="LICENSE"><img
+     src="https://img.shields.io/badge/licence-MIT-1f3bc4"
+     alt="MIT licence"></a>
+  <img src="https://img.shields.io/badge/backend-none-1f3bc4" alt="No backend">
+</p>
+
 <h2 align="center">
   <a href="https://dhcgn.github.io/hushscribe/">▶&nbsp; Click here for hushscribe</a>
 </h2>
