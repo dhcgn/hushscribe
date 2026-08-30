@@ -21,6 +21,7 @@ src/gate.js         pure: which files the API accepts, and why not
 src/segments.js     pure: VTT/SRT/text, timestamps, prompt budget
 src/pricing.js      pure: per-minute rates, cost estimates
 src/manifest.js     pure: SNP measurement + manifest hash
+public/             manifest.webmanifest, sw.js (no-cache), PWA icons
 vite.config.js      base path, wasm plugin, CSP injection, dev-key mapping
 test/*.test.js      vitest — the pure modules
 test/e2e/           playwright — the real built bundle
@@ -55,8 +56,11 @@ Breaking any of these breaks the product's entire claim. They are not style pref
 4. **No dev key in a build.** `__DEV_API_KEY__` is `''` for every build; CI greps `dist/`
    for key-shaped strings and fails. A public Pages bundle is public to everyone.
 5. **No backend.** Ever. A server that touches the audio voids the claim.
-6. **CSP has no `'unsafe-inline'`.** Never widen it to silence an error.
-7. **Never overstate.** The UI states what is *not* covered (metadata, browser trust,
+6. **The service worker caches nothing.** `public/sw.js` exists for installability only. A
+   cache could pin an old bundle — and the bundle carries the attestation verifier plus its
+   pinned hash. The app needs the network anyway.
+7. **CSP has no `'unsafe-inline'`.** Never widen it to silence an error.
+8. **Never overstate.** The UI states what is *not* covered (metadata, browser trust,
    `dangerouslyAllowBrowser`). Honesty is what makes the rest credible.
 
 ## Traps already paid for

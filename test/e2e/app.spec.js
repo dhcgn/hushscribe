@@ -42,6 +42,9 @@ test.describe('attestation', () => {
     await expect(detail).toContainText(MEASUREMENT);
     await expect(detail).toContainText('Genoa');
     await expect(detail).toContainText(/Manifest SHA-256/);
+    await expect(detail).toContainText(/Verifier Wasm SHA-256/);
+    // The value shown must be the one actually pinned into the build.
+    await expect(detail).toContainText(/[0-9a-f]{64}/);
     await expect(detail).toContainText(/[0-9a-f]{64}/);
     await expect(detail).toContainText('coordinator');
   });
@@ -397,6 +400,45 @@ test.describe('cost estimate', () => {
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
     await expect(card.locator('.price')).toHaveText('');
+  });
+});
+
+test.describe('installable app', () => {
+  test('serves a valid manifest with the icons it names', async ({ page, request }) => {
+    const link = await page.locator('link[rel="manifest"]').getAttribute('href');
+    expect(link).toBeTruthy();
+
+    const res = await request.get(new URL(link, page.url()).href);
+    expect(res.ok()).toBe(true);
+    const m = await res.json();
+    expect(m.name).toContain('hushscribe');
+    expect(m.display).toBe('standalone');
+    expect(m.icons.length).toBeGreaterThanOrEqual(2);
+    expect(m.icons.some((i) => i.sizes === '512x512')).toBe(true);
+    expect(m.icons.some((i) => i.purpose === 'maskable')).toBe(true);
+
+    // A manifest naming icons that 404 is worse than no manifest.
+    for (const icon of m.icons) {
+      const img = await request.get(new URL(icon.src, new URL(link, page.url())).href);
+      expect(img.ok(), `${icon.src} must exist`).toBe(true);
+      expect(img.headers()['content-type']).toContain('image/png');
+    }
+  });
+
+  test('registers a service worker that caches nothing', async ({ page }) => {
+    await expect
+      .poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())),
+        { timeout: 10_000 })
+      .toBe(true);
+
+    // The whole point: no stale bundle can ever be served (see public/sw.js).
+    // Comments are stripped first — the file explains at length that it does not
+    // call respondWith, and matching that prose would be matching the wrong thing.
+    const raw = await (await page.request.get(new URL('sw.js', page.url()).href)).text();
+    const code = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(code).not.toMatch(/caches\s*\./);
+    expect(code).not.toMatch(/respondWith/);
+    expect(code).toMatch(/addEventListener\(\s*'fetch'/);
   });
 });
 

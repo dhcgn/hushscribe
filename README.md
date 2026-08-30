@@ -94,6 +94,16 @@ Set a **language** to get timestamps, clickable segments, and `.vtt` / `.srt` su
 leave it on auto-detect and you get plain text. That coupling is the API's, not ours —
 `verbose_json` requires a language.
 
+## Install it as an app
+
+The page ships a web app manifest, so browsers offer *Install* (desktop) or *Add to Home
+Screen* (mobile) and it runs in its own window.
+
+The service worker **caches nothing, deliberately**. hushscribe cannot work offline — every
+transcription needs the API — so a cache would buy nothing, while a stale one could pin an
+old bundle. That bundle carries the attestation verifier and its pinned hash, so a fix must
+reach every client on the next load.
+
 ## What is stored
 
 Everything lives in your browser's `localStorage` and nowhere else: the API key, saved

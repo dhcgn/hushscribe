@@ -94,6 +94,26 @@ Honesty here is what makes the rest credible:
 - **We do not verify model weights.** Privatemode's model-integrity story is theirs; we link
   it, we don't restate it as ours.
 
+### 1.4 Showing the verifier's hash — an audit aid, not a defence
+
+The expanded proof row displays the SHA-256 of `privatemode.wasm`. It is worth being precise
+about what that does and does not buy, because it is easy to mistake for a security control.
+
+**It is not a defence.** A page that had been tampered with would display whatever hash the
+tamperer chose. A self-reported hash cannot detect a compromised self, and no amount of
+displaying it changes that.
+
+**The enforcement is elsewhere, and it is real.** `expectedWasmHash` is pinned into the
+bundle at build time and checked by the SDK against the bytes it actually instantiates. A
+mismatch throws before the module runs — it fails closed, with no degraded mode.
+
+**What displaying it adds is auditability.** A reader can compare the running value against a
+[reproducible build](https://docs.privatemode.ai/reference/sdk/verify-from-source) of the SDK
+without opening devtools, and can tell which build is live. That fits the standing rule that
+every claim on the page should be checkable. It is cheap — the value already exists as a
+build-time constant — so it is worth showing, and worth labelling honestly rather than
+dressing up as protection.
+
 ---
 
 ## 2. System shape

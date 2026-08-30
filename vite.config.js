@@ -18,6 +18,7 @@ const CSP = [
   "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self'",
   "img-src 'self' data:",
+  "manifest-src 'self'",
   "media-src 'self' blob:",
   "connect-src 'self' https://api.privatemode.ai https://cdn.confidential.cloud https://api.trustedservices.intel.com https://kdsintf.amd.com",
   "worker-src 'self' blob:",

@@ -110,6 +110,11 @@ function setProof(state, manifest, manifestDigest) {
     rows.push(['SEV-SNP launch measurement', product ? `${measurement}  (${product})` : measurement]);
   }
   if (manifestDigest) rows.push(['Manifest SHA-256', manifestDigest]);
+  // Not a defence — a page that lied about its own code would lie about this
+  // too. It is an audit aid: compare it against a reproducible build of the SDK
+  // (ARCHITECTURE.md §1.4). The enforcement is expectedWasmHash, which the SDK
+  // checks before instantiation and which fails closed.
+  rows.push(['Verifier Wasm SHA-256 (pinned, enforced)', __WASM_SHA256__]);
   const { count, roles } = policySummary(manifest);
   if (count) {
     rows.push(['Workload policies', `${count}${roles.length ? ` · ${roles.join(', ')}` : ''}`]);
@@ -551,6 +556,14 @@ $('model').value = load(K.model, 'whisper-large-v3');
 // Open the walkthrough for people who never got as far as saving a key. No
 // dismissed-flag to store or go stale.
 $('guide').open = !savedKey;
+
+/* Installability only — sw.js caches nothing on purpose (see public/sw.js).
+   Dev is skipped: a service worker in front of Vite's HMR is pure confusion. */
+if ('serviceWorker' in navigator && !import.meta.env.DEV) {
+  navigator.serviceWorker
+    .register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL })
+    .catch(() => { /* installability is a nicety; never break the page over it */ });
+}
 
 setProof('idle');
 renderPrompts(); renderData(); renderHistory(); renderCount(); renderRate();
