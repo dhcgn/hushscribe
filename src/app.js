@@ -526,6 +526,16 @@ $('delPrompt').addEventListener('click', () => {
   save(K.prompts, list); renderPrompts();
 });
 
+/* Inside <summary>, so the click must not also toggle the disclosure. */
+$('keyEdit').addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  document.documentElement.dataset.key = 'editing';
+  $('access').scrollIntoView({ block: 'center' });
+  $('key').focus();
+  $('key').select();
+});
+
 $('viewToggle').addEventListener('click', () => {
   const next = document.documentElement.dataset.view === 'compact' ? 'comfortable' : 'compact';
   save(K.view, next);

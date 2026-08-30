@@ -328,3 +328,18 @@ button.link {
 /* The key field is only a question until it is answered. Verification failure
    puts it back (app.js clears data-key), so a bad key is always fixable here. */
 :root[data-view="compact"][data-key="saved"] #access { display: none; }
+
+/* Compact hides the Access panel once a key is stored, so this is the way back
+   to it. Pointless in the full view, where the field is already on screen, and
+   pointless with no key saved, where the panel is showing anyway. */
+.key-edit { display: none; }
+:root[data-view="compact"][data-key="saved"] .key-edit { display: inline-block; }
+.key-edit {
+  font: 500 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  padding: 4px 8px; margin-left: 4px; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--paper); color: var(--slate); cursor: pointer;
+}
+.key-edit:hover { border-color: var(--seal); color: var(--seal); }
+
+/* Revealed while editing, hidden again once a key verifies. */
+:root[data-view="compact"][data-key="editing"] #access { display: block; }

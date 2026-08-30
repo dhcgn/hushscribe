@@ -489,6 +489,50 @@ test.describe('view toggle', () => {
 
   // The header is sticky, so the chip is the only status still on screen once the
   // results scroll past. It stays in both views.
+  test('offers Edit key only where the field is out of reach', async ({ page }) => {
+    // Nothing saved: the Access panel is already on screen, so the button would
+    // be pointing at something the user can see.
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#keyEdit')).toBeHidden();
+
+    await unlock(page);
+    await expect(page.locator('#keyEdit')).toBeVisible();
+    await expect(page.locator('#access')).toBeHidden();
+
+    // Full view keeps the field visible, so the button has no job there either.
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#keyEdit')).toBeHidden();
+    await expect(page.locator('#access')).toBeVisible();
+  });
+
+  test('Edit key reveals the field without expanding the attestation detail', async ({ page }) => {
+    await unlock(page);
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#proof')).not.toHaveAttribute('open', '');
+
+    await page.locator('#keyEdit').click();
+
+    await expect(page.locator('#access')).toBeVisible();
+    await expect(page.locator('#key')).toBeFocused();
+    // The button lives inside <summary>; without stopPropagation every click
+    // would also toggle the disclosure as a side effect.
+    await expect(page.locator('#proof')).not.toHaveAttribute('open', '');
+  });
+
+  test('Edit key folds away again once a new key verifies', async ({ page }) => {
+    await unlock(page);
+    await page.locator('#viewToggle').click();
+    await page.locator('#keyEdit').click();
+    await expect(page.locator('#access')).toBeVisible();
+
+    await page.getByLabel('Privatemode API key').fill('pm-a-different-key');
+    await page.getByRole('button', { name: 'Verify & save' }).click();
+
+    await expect(page.locator('html')).toHaveAttribute('data-key', 'saved');
+    await expect(page.locator('#access')).toBeHidden();
+    await expect(page.locator('#keyEdit')).toBeVisible();
+  });
+
   test('keeps the status chip visible in both views, and while scrolled', async ({ page }) => {
     await unlock(page);
     await expect(page.locator('#chip')).toBeVisible();

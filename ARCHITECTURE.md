@@ -515,6 +515,17 @@ The warning gets *shorter*, not absent — a `.dense` one-liner replaces the par
 the temptation to drop a warning for being long is exactly what §1.3 exists to resist. E2e
 tests assert each of these.
 
+Hiding the field needs a way back, so the proof row carries an **Edit key** button in compact
+— and only there, and only once a key is stored: in the full view, or with nothing saved, the
+field is already on screen and the button would point at something visible. It sets
+`data-key="editing"`, reveals the panel, and focuses the input with its contents selected.
+Verifying a new key returns the state to `saved`, folding the panel away again. There is no
+separate save; **Verify & save** already is one.
+
+The button sits inside `<summary>`, so its handler calls `preventDefault()` and
+`stopPropagation()` — otherwise every click would expand the attestation detail as a side
+effect. A test asserts the disclosure stays shut.
+
 One safety interlock: a failed verification sets `data-key="none"`, so a stored key that has
 stopped working brings the field back even in compact. Otherwise a bad key would be
 unfixable without first discovering the view toggle.
