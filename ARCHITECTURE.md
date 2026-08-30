@@ -10,6 +10,13 @@ The user brings an API key, drops media onto the page, and gets a timestamped tr
 back. There is no backend of ours. Nothing leaves the tab except payloads encrypted to a
 **remotely attested TEE**.
 
+> **This project supplies a UI and none of the cryptography.** The attested confidential
+> VMs, the attestation verifier, the end-to-end encryption, and the models are
+> [Privatemode](https://www.privatemode.ai/), built by
+> [Edgeless Systems](https://www.edgeless.systems/), a German company. Everything §1 claims
+> is true because of their work; this repo's job (§1.2) is to avoid undermining it.
+> Transcription is billed by them per audio minute (§5.2).
+
 ---
 
 ## 1. The claim, stated precisely
@@ -117,6 +124,7 @@ index.html                  # markup only — no inline styles or scripts (§8.1
 src/app.js                  # UI, storage, client lifecycle, transcribe loop
 src/gate.js                 # pure: format + size admission        (39 unit tests)
 src/segments.js             # pure: VTT/SRT/text, prompt budget    (40 unit tests)
+src/pricing.js              # pure: per-minute rates, estimates    (29 unit tests)
 src/style.css               # all styles; hashed and minified by Vite
 src/reencode.js             # stage 2 — dynamic import(), pulls in ffmpeg.wasm
 
@@ -126,7 +134,8 @@ playwright.smoke.config.js  # opt-in real-enclave suite
 
 test/gate.test.js           # vitest
 test/segments.test.js       # vitest
-test/e2e/app.spec.js        # playwright, drives the real UI      (20 tests)
+test/pricing.test.js        # vitest
+test/e2e/app.spec.js        # playwright, drives the real UI      (24 tests)
 test/e2e/fake-client.js     # stand-in client + generated fixtures (never shipped)
 test/e2e/smoke.spec.js      # @smoke — real key, real enclave, real money
 
@@ -333,7 +342,7 @@ Single screen, top to bottom:
    indicator (§3.4).
 7. **Dropzone** — full-page drop target, also click-to-browse `<input type="file" multiple>`.
 8. **Results** — one card per file (§5.1).
-9. **History** — the last 20 transcripts (§5.2).
+9. **History** — the last 20 transcripts (§5.3).
 10. **Data** — export all / clear all (§7.3).
 
 ### 5.1 Timestamped result card
@@ -357,7 +366,35 @@ here: WebVTT is a native platform feature and it is already exactly the format w
 **Skipped:** waveform preview, speaker colours, editable transcripts, progress percentages
 (the API does not stream — a spinner is the honest indicator).
 
-### 5.2 History
+### 5.2 Cost estimate
+
+Privatemode bills **per audio minute**, so the price of a job is knowable the moment the
+browser reads the file's duration — long before the transcript returns. That makes an
+estimate cheap to show and dishonest to omit.
+
+| Model | EUR / min | One hour |
+|---|---|---|
+| `whisper-large-v3` | 0.014 | ≈ €0.84 |
+| `voxtral-mini-3b` | 0.004 | ≈ €0.24 |
+
+Three rules keep the number trustworthy:
+
+- **Every figure carries its date** (`September 2026`) and links to
+  [privatemode.ai/pricing](https://www.privatemode.ai/pricing). Rates move; a stale number
+  should look stale rather than quietly lie. `RATES` is frozen, and a unit test asserts the
+  published values, so changing what users are quoted takes a deliberate edit.
+- **Duration is probed independently of playback.** A file we decline to render inline may
+  still be priceable, so `probeDuration()` reuses the visible player when there is one and
+  falls back to a detached element otherwise, with a 5 s timeout.
+- **No duration, no estimate.** When the browser cannot decode the container the line is
+  omitted entirely. An estimate nobody can check is worse than none. Likewise amounts under
+  a cent read *"under €0.01"*, never `€0.00`, which would say free.
+
+**Skipped:** a confirmation gate before spending. The estimate appears while the request is
+still in flight, and a modal on every file would punish batch use. Revisit if someone
+reports a surprising bill.
+
+### 5.3 History
 
 The last 20 transcripts, newest first, as native `<details>` rows — no accordion script, no
 disclosure library. Each expands to the timestamped segment list plus the same four export
@@ -365,7 +402,7 @@ buttons and a per-entry delete.
 
 **Media files are never stored.** They exist as an object URL for exactly as long as the tab
 that received them, and nothing writes them to disk. So history entries have **no player**,
-and the same `segRows()` that renders seek buttons in a live result card renders plain rows
+and the same `segmentList()` that renders seek buttons in a live result card renders plain rows
 here — one function, one branch on whether a player exists. The UI says this out loud rather
 than leaving a user to wonder why yesterday's transcript has no audio: the absence is the
 feature.
@@ -376,7 +413,7 @@ large, is the sensitive artifact, and has no reason to outlive the tab.
 
 ---
 
-### 5.3 Help for non-technical users
+### 5.4 Help for non-technical users
 
 The intended user is a therapist, journalist, clinician, or lawyer with a recording they
 currently cannot transcribe anywhere — not a developer. The page originally failed them at
@@ -819,6 +856,9 @@ a two-hour recording.**
 | Vite, not raw `<script>` + importmap | ESM + peer dep + Wasm sidecar, all of which must be same-origin. |
 | `verbose_json` only when a language is set | The API couples them. Degrade to plain text rather than making an optional field mandatory. |
 | Prompt budget counted in characters | A tokenizer to police a 224-token cap is more code than the warning is worth. |
+| Cost estimated, never gated | Billing is per audio minute, so the figure is free to compute; a modal on every file would punish batch use. |
+| No duration, no price shown | An estimate nobody can check is worse than none. |
+| `test-data/` versioned, excluded from CI | Real speech makes the smoke suite reproducible; a non-cone sparse checkout keeps 83 MB off every build. |
 | Native `<track>` + WebVTT for captions | The browser already renders subtitles. No caption library. |
 | Vitest + Playwright, nothing between | Pure logic without a browser, real DOM in a real browser, no jsdom middle ground. |
 | One-line `__HC_CLIENT` seam | Testable GUI with zero mock code in the shipped bundle. |
