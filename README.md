@@ -102,8 +102,22 @@ from the page.
 
 ## Deployment
 
-Push to `main`; GitHub Actions builds and publishes to Pages. `BASE_PATH` defaults to
-`/hushscribe/` for a project site — set it to `/` for a custom domain.
+Live at **[dhcgn.github.io/hushscribe](https://dhcgn.github.io/hushscribe/)**. Push to
+`main` and Actions builds, checks, and publishes it.
+
+**One-time setup on a fresh clone or fork:** Pages must be enabled with *Source: GitHub
+Actions* before the first deploy, or `configure-pages` fails with `Get Pages site failed`.
+The workflow cannot do this for you — `GITHUB_TOKEN` is refused with `Resource not
+accessible by integration`.
+
+```bash
+gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
+```
+
+Or Settings → Pages → Source: GitHub Actions.
+
+`BASE_PATH` defaults to `/hushscribe/` for a project site — set it to `/` for a custom
+domain, and keep it in step with `base` in `vite.config.js`.
 
 ## Verifying the claim
 
