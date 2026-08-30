@@ -700,7 +700,27 @@ A second guard now sits in the GUI suite: an assertion that the proof row never 
 matching `manifest carried|undefined|null|NaN`. Placeholder strings should fail loudly in
 CI, not quietly in front of a user.
 
-### 6.4 GitHub Actions
+### 6.4 What the coverage number counts
+
+`npm run coverage` measures **only the four pure modules** — `gate`, `segments`, `pricing`,
+`manifest` — currently 100% of lines and 97.75% of branches, with CI failing below
+95/90/95/95 so the figure cannot quietly rot.
+
+`app.js` is excluded on purpose. It is DOM wiring, exercised by Playwright against the real
+built bundle, and Vitest cannot see any of that. Two dishonest options were available:
+include it and report ~40%, which describes the tool rather than the code, or fold e2e
+coverage in by instrumenting the bundle with Istanbul. The second is tempting but breaks a
+standing rule — **e2e tests run against the artifact that deploys** (§6.4 below), and an
+instrumented bundle is not that artifact. So the badge says *unit coverage* and this section
+says what that covers.
+
+The badge is a **shields.io endpoint** reading `dist/coverage.json`, which the deploy
+publishes to our own Pages site. No Codecov, no Coveralls, no upload token, no third party
+holding build data — shields only renders a document we serve ourselves. The number is
+generated after the build by `scripts/coverage-badge.mjs`, which fails loudly if either the
+coverage summary or `dist/` is missing rather than emitting a stale or empty badge.
+
+### 6.5 GitHub Actions
 
 Two workflows, both running the same commands a developer runs locally.
 
