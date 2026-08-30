@@ -5,7 +5,7 @@ import {
   clock, toVTT, toSRT, toTXT, activeIndex, promptBudget,
 } from './segments.js';
 import { PRICES_DATED, estimateLine, rateLabel } from './pricing.js';
-import { digestHex, measurements, policySummary, proofSummary } from './manifest.js';
+import { digestHex, measurements, policySummary, proofSummary, shortHex } from './manifest.js';
 
 /* An invisible iframe of a page holding an API key is worth blocking, and
    frame-ancestors is header-only — GitHub Pages gives us no headers (§8.1). */
@@ -130,6 +130,10 @@ function setProof(state, manifest, manifestDigest) {
 }
 
 /* ═══ transcribe ═══════════════════════════════════════════════════════════ */
+/* Dropped files, keyed by the history timestamp, for this tab only. Never
+   persisted — Redo works for files from this session and honestly cannot for
+   anything older, because the media was deliberately not kept (§5.3). */
+const sessionFiles = new Map();
 const objectUrls = [];
 const trackUrl = (u) => { objectUrls.push(u); return u; };
 
@@ -192,7 +196,10 @@ async function transcribe(file) {
   }
 
   const segments = res.segments?.length ? res.segments : null;
-  card.querySelector('.card-chain').textContent = sealedMeasurement;
+  // Git-style: enough to recognise, short enough not to dominate the card.
+  const chain = card.querySelector('.card-chain');
+  chain.textContent = shortHex(sealedMeasurement, 12);
+  chain.title = sealedMeasurement;
 
   if (segments) {
     if (media) {
@@ -211,10 +218,15 @@ async function transcribe(file) {
     );
   }
 
+  const at = new Date().toISOString();
+  // Session-only: the file itself is never stored (§5.3), but keeping it in
+  // memory for this tab is what makes Redo possible without a re-drop.
+  sessionFiles.set(at, file);
+
   const hist = load(K.hist, []);
   hist.unshift({
-    name: file.name, model: $('model').value, lang: lang || 'auto',
-    at: new Date().toISOString(),
+    name: file.name, model: $('model').value, lang: lang || 'auto', at,
+    measurement: sealedMeasurement,
     text: segments ? toTXT(segments) : (res.text ?? ''),
     segments,
   });
@@ -278,20 +290,43 @@ function segmentList(segments, media) {
 function exportBar(name, segments, extra, plainText) {
   const bar = el('div', { className: 'row' });
   const stem = name.replace(/\.[^.]+$/, '');
+  const text = segments ? toTXT(segments) : (plainText ?? '');
   const files = segments
     ? [['.vtt', toVTT(segments), 'text/vtt'],
        ['.srt', toSRT(segments), 'text/plain'],
-       ['.txt', toTXT(segments), 'text/plain'],
+       ['.txt', text, 'text/plain'],
        ['.json', JSON.stringify(segments, null, 2), 'application/json']]
-    : [['.txt', plainText, 'text/plain'],
-       ['.json', JSON.stringify({ text: plainText }, null, 2), 'application/json']];
+    : [['.txt', text, 'text/plain'],
+       ['.json', JSON.stringify({ text }, null, 2), 'application/json']];
   files.forEach(([ext, data, type]) => {
     const b = el('button', { textContent: ext });
     b.addEventListener('click', () => download(stem + ext, data, type));
     bar.append(b);
   });
+  bar.append(copyButton(text));
   if (extra) bar.append(extra);
   return bar;
+}
+
+/* Clipboard writes need a secure context and can be refused outright, so the
+   button reports what happened instead of appearing to have worked. */
+function copyButton(text) {
+  // A stable hook: this button's label changes to 'Copied', so anything that
+  // finds it by text stops finding it exactly when it matters.
+  const b = el('button', { textContent: 'Copy' });
+  b.dataset.act = 'copy';
+  b.addEventListener('click', async () => {
+    // Chromium does not reject when the document lacks focus — it leaves the
+    // promise pending forever, which would leave this button silent. Always
+    // report an outcome.
+    const ok = await Promise.race([
+      navigator.clipboard.writeText(text).then(() => true, () => false),
+      new Promise((resolve) => setTimeout(() => resolve(false), 2000)),
+    ]);
+    b.textContent = ok ? 'Copied' : 'Copy blocked';
+    setTimeout(() => { b.textContent = 'Copy'; }, 1600);
+  });
+  return b;
 }
 
 function download(name, data, type) {
@@ -301,14 +336,26 @@ function download(name, data, type) {
 }
 
 /* ═══ intake ═══════════════════════════════════════════════════════════════ */
-function take(files) {
+async function take(files) {
+  // Snapshot before any await: `files` is a live FileList, and the picker's
+  // change handler clears picker.value the moment this returns — which empties
+  // it out from under us once this function starts awaiting verification.
+  const queue = [...files];
+  if (!queue.length) return;
+
+  // Dropping a file is an unambiguous request to transcribe it, so do the
+  // verification the user would otherwise have had to click through first.
   if (!client) {
-    note($('keyNote'), 'Verify your API key first.', true);
-    $('key').focus();
-    return Promise.resolve();
+    if (!$('key').value.trim()) {
+      note($('keyNote'), 'Enter your API key first, then drop the file again.', true);
+      $('key').focus();
+      return;
+    }
+    await verify();
+    if (!client) return; // verify() has already explained why
   }
   // Sequential: honest progress, no rate-limit games, less code.
-  return [...files].reduce((p, f) => p.then(() => transcribe(f)), Promise.resolve());
+  return queue.reduce((p, f) => p.then(() => transcribe(f)), Promise.resolve());
 }
 
 function renderRate() {
@@ -353,18 +400,45 @@ function renderHistory() {
         textContent: `${new Date(h.at).toLocaleString()} · ${h.model} · ${h.lang}`,
       }),
     );
+    const actions = el('span', { className: 'hist-actions' });
+
+    // Redo needs the audio, and the audio was deliberately never stored. It is
+    // therefore offered only while the file is still in this tab's memory.
+    const file = sessionFiles.get(h.at);
+    if (file) {
+      const redo = el('button', {
+        textContent: 'Redo',
+        title: 'Transcribe this file again with the settings currently selected above',
+      });
+      redo.addEventListener('click', () => {
+        $('results').scrollIntoView({ block: 'start' });
+        take([file]);
+      });
+      actions.append(redo);
+    }
+
     const del = el('button', { textContent: 'Delete' });
     del.addEventListener('click', () => {
       const list = load(K.hist, []);
       list.splice(i, 1);
       save(K.hist, list);
+      sessionFiles.delete(h.at);
       renderHistory(); renderData();
     });
+    actions.append(del);
+
     const body = el('div', { className: 'hist-body' });
     body.append(
       h.segments ? segmentList(h.segments, null) : el('p', { className: 'plain', textContent: h.text }),
-      exportBar(h.name, h.segments, del, h.text),
+      exportBar(h.name, h.segments, actions, h.text),
     );
+    if (h.measurement) {
+      body.append(el('p', {
+        className: 'hist-chain',
+        textContent: `enclave ${shortHex(h.measurement, 12)}`,
+        title: h.measurement,
+      }));
+    }
     item.append(summary, body);
     box.append(item);
   });

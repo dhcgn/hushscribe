@@ -148,6 +148,11 @@
           <option value="it">it · Italian</option>
           <option value="nl">nl · Dutch</option>
         </select>
+        <p class="note warn">
+          Pick the language actually spoken. Given the wrong one, Whisper does not fail
+          &mdash; it <b>translates</b> into the language you chose, and the result reads
+          like a plausible transcript that is not what was said.
+        </p>
       </div>
     </div>
     <details class="help">
@@ -157,6 +162,12 @@
         guess. And it is the only way to get <b>timestamps</b> &mdash; the clickable
         line-by-line transcript and downloadable subtitles. On automatic detection you still
         get the full text, just as one block with no times attached.
+      </p>
+      <p>
+        Naming the <em>wrong</em> language is worse than naming none. Whisper treats a
+        mismatch as an instruction to translate, so German audio labelled English comes back
+        as fluent English prose &mdash; readable, confident, and not a transcript of what
+        anyone said. If you are unsure, leave it on automatic detection.
       </p>
     </details>
 

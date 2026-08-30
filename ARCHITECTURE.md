@@ -169,6 +169,12 @@ That is the whole design rationale for the file split — not layering for its o
 real: Vite hashes and minifies a linked stylesheet, and `style-src 'self'` forbids the
 inline `<style>` block that would otherwise have to carry it.
 
+History entries carry a **Redo** button that re-runs the file with whatever model, language,
+and prompt are currently selected — the usual reason to redo is a wrong language (§5.1). It
+appears only while the file is still in this tab's memory: the media is deliberately never
+stored (§5.3), so after a reload there is nothing to redo from, and offering a button that
+cannot work would be worse than offering none.
+
 **Skipped:** a framework, a router, a state library, a CSS framework. The UI is a form, a
 dropzone, a player, and a list.
 
@@ -382,6 +388,11 @@ Each finished file renders as:
 Using the browser's own caption renderer instead of a subtitle library is the whole trick
 here: WebVTT is a native platform feature and it is already exactly the format we need.
 
+Each result and history entry also offers **Copy**, which puts the plain text on the
+clipboard. Chromium does not reject `clipboard.writeText` when the document lacks focus — it
+leaves the promise pending forever — so the handler races it against a 2 s timeout and always
+reports an outcome rather than going silent.
+
 **Skipped:** waveform preview, speaker colours, editable transcripts, progress percentages
 (the API does not stream — a spinner is the honest indicator).
 
@@ -408,6 +419,11 @@ Three rules keep the number trustworthy:
 - **No duration, no estimate.** When the browser cannot decode the container the line is
   omitted entirely. An estimate nobody can check is worse than none. Likewise amounts under
   a cent read *"under €0.01"*, never `€0.00`, which would say free.
+
+Dropping a file before pressing **Verify** now verifies first and then transcribes: dropping
+a file is an unambiguous request, and making someone click twice for it was friction with no
+safety value. A missing key still stops the flow, and a failed attestation still aborts
+before anything is sent.
 
 **Skipped:** a confirmation gate before spending. The estimate appears while the request is
 still in flight, and a modal on every file would punish batch use. Revisit if someone

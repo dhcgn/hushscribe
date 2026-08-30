@@ -76,7 +76,7 @@ test.describe('attestation', () => {
 
   test('refuses to transcribe before verification', async ({ page }) => {
     await page.locator('#picker').setInputFiles(wav);
-    await expect(page.locator('#keyNote')).toContainText('Verify your API key first');
+    await expect(page.locator('#keyNote')).toContainText('Enter your API key first');
     await expect(page.locator('.card')).toHaveCount(0);
   });
 });
@@ -88,7 +88,7 @@ test.describe('transcription', () => {
 
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
-    await expect(card.locator('.card-chain')).toHaveText(MANIFEST.ReferenceValues.snp[0].TrustedMeasurement);
+    await expect(card.locator('.card-chain')).toHaveText(MEASUREMENT.slice(0, 12));
     await expect(card.locator('.seg').first()).toContainText(LINES[0]);
 
     // The browser parsed our generated WebVTT — the whole reason there is no
@@ -127,7 +127,7 @@ test.describe('transcription', () => {
     await expect(card.locator('.plain')).toContainText(LINES[0]);
     await expect(card.locator('.seg')).toHaveCount(0);
     await expect(card.locator('track')).toHaveCount(0);
-    await expect(card.locator('.row button')).toHaveText(['.txt', '.json']);
+    await expect(card.locator('.row button')).toHaveText(['.txt', '.json', 'Copy']);
     await expect(card).toContainText('Set a language to get timestamps');
   });
 
@@ -263,6 +263,101 @@ test.describe('prompt budget', () => {
 
     await page.locator('#prompts').selectOption({ index: 1 });
     await expect(prompt).toHaveValue('Dr. Bergström, the Halvorsen case');
+  });
+});
+
+test.describe('convenience', () => {
+  // Dropping a file is an unambiguous request to transcribe it.
+  test('verifies automatically when a file is dropped before pressing Verify', async ({ page }) => {
+    await page.getByLabel('Privatemode API key').fill(KEY);
+    await page.getByLabel('Spoken language').selectOption('en');
+    await expect(page.locator('#chip')).toHaveText('unverified');
+
+    await page.locator('#picker').setInputFiles(wav);
+
+    await expect(page.locator('#chip')).toHaveText('sealed');
+    await expect(page.locator('.card .seg')).toHaveCount(LINES.length);
+  });
+
+  test('still asks for a key when there is none to verify with', async ({ page }) => {
+    await page.locator('#picker').setInputFiles(wav);
+    await expect(page.locator('#keyNote')).toContainText('Enter your API key first');
+    await expect(page.locator('.card')).toHaveCount(0);
+  });
+
+  test('does not transcribe if the automatic verification fails', async ({ page }) => {
+    await installFakeClient(page, { fail: 'verify' });
+    await page.goto('.');
+    await page.getByLabel('Privatemode API key').fill(KEY);
+    await page.locator('#picker').setInputFiles(wav);
+
+    await expect(page.locator('#keyNote')).toContainText('attestation rejected');
+    await expect(page.locator('.card')).toHaveCount(0);
+  });
+
+  test('shortens the measurement on a card, full value on hover', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(wav);
+
+    const chain = page.locator('.card .card-chain').first();
+    await expect(chain).toHaveText(MEASUREMENT.slice(0, 12));
+    await expect(chain).toHaveAttribute('title', MEASUREMENT);
+  });
+
+  test('copies the transcript to the clipboard', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.bringToFront(); // Chromium stalls clipboard writes on an unfocused document
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(wav);
+    await expect(page.locator('.card .seg')).toHaveCount(LINES.length);
+
+    const copy = page.locator('.card').first().locator('[data-act="copy"]');
+    await copy.click();
+    await expect(copy).toHaveText('Copied');
+
+    const clip = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clip).toBe(LINES.join(' '));
+    // The label returns, so a second copy does not look like a no-op.
+    await expect(copy).toHaveText('Copy', { timeout: 4000 });
+  });
+
+  test('redoes a history entry with the settings currently selected', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(wav);
+    await expect(page.locator('.hist')).toHaveCount(1);
+
+    // Change the settings, then redo: the new run must use them, not the old ones.
+    await page.getByLabel('Spoken language').selectOption('de');
+    await page.getByLabel('Model').selectOption('voxtral-mini-3b');
+
+    const entry = page.locator('.hist').first();
+    await entry.locator('summary').click();
+    await entry.getByRole('button', { name: 'Redo' }).click();
+
+    await expect(page.locator('.hist')).toHaveCount(2);
+    await expect(page.locator('.hist').first().locator('.hist-meta'))
+      .toContainText('voxtral-mini-3b');
+    await expect(page.locator('.hist').first().locator('.hist-meta')).toContainText('de');
+  });
+
+  // The media was deliberately never stored, so Redo cannot be offered for it.
+  test('offers no Redo after a reload, when the file is gone', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(wav);
+    await expect(page.locator('.hist')).toHaveCount(1);
+
+    await page.reload();
+    const entry = page.locator('.hist').first();
+    await entry.locator('summary').click();
+    await expect(entry.getByRole('button', { name: 'Redo' })).toHaveCount(0);
+    await expect(entry.getByRole('button', { name: 'Delete' })).toBeVisible();
+  });
+
+  test('warns that a wrong language makes Whisper translate', async ({ page }) => {
+    await expect(page.locator('.field .note.warn')).toContainText('translates');
+    const help = page.locator('.help', { hasText: 'Why does the language matter?' });
+    await help.locator('summary').click();
+    await expect(help).toContainText('worse than naming none');
   });
 });
 
