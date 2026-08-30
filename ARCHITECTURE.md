@@ -242,6 +242,17 @@ fixed by more compression.
 `ffmpeg.wasm` core files are **vendored and served same-origin** — same rule as §1.2. It
 touches plaintext audio, so it is not coming from a CDN.
 
+> ⚠️ **Single-threaded ffmpeg core only.** The multi-threaded build (`@ffmpeg/core-mt`) needs
+> `SharedArrayBuffer`, which needs cross-origin isolation via `Cross-Origin-Opener-Policy`
+> and `Cross-Origin-Embedder-Policy` **response headers**. GitHub Pages cannot set headers
+> (§8.1), so hushscribe uses plain `@ffmpeg/core`. Re-encoding is a few times slower and runs
+> in a Worker so the UI stays responsive.
+>
+> The usual workaround — `coi-serviceworker`, a service worker that fakes those headers — is
+> **rejected**: it is third-party code with full read access to the page, which is exactly
+> what §1.2 forbids. Faster transcoding is not worth weakening the one rule the security
+> claim rests on.
+
 **Skipped:** bit rates between 128 and 64, VBR tuning, format-aware heuristics. Two attempts
 cover the realistic range; the docs' own advice is "avoid low bit rates".
 
@@ -475,13 +486,77 @@ refuse to resolve any of that over a CDN at runtime (§1.2). The build copies
 `privatemode.wasm` (and, from Stage 2, the ffmpeg core) into `dist/` and records the Wasm
 SHA-256 for `expectedWasmHash`.
 
-`dist/` deploys to GitHub Pages or any static host. No environment variables, no secrets in
-CI for the default pipeline, no runtime configuration.
+### 8.1 Hosting: GitHub Pages, free
+
+hushscribe is served from **GitHub Pages** on the free tier. It has no backend, no database,
+and no runtime configuration, so a static-file host is not a compromise — it is the whole
+deployment. Cost is zero, at any usage level this app will see.
+
+Pages is not just *adequate* here, it actively supports the claim in §1:
+
+- **Nothing to log.** We could not retain user data if we wanted to; there is no server-side
+  code to run. Static hosting is the strongest form of "we don't have your audio."
+- **The deployed bytes are traceable.** Pages publishes from a public repo through a public
+  Actions run. Anyone can check that the page they loaded was built from the commit they
+  audited — which is the same argument the SDK's
+  [reproducible build](https://docs.privatemode.ai/reference/sdk/verify-from-source) makes
+  one layer down.
+- **Free TLS**, and *Enforce HTTPS* stays on. WebAssembly, `crypto.subtle`, and object URLs
+  all require a secure context, so this is a hard requirement, not a nicety.
+
+**Honest caveat:** GitHub and its CDN see who fetched the page, when, and from which IP —
+ordinary web-server metadata for the *static assets*. They never see audio or transcripts;
+those go straight from the tab to `api.privatemode.ai`, encrypted (§1.3, metadata leaks).
+
+#### What Pages forces on the design
+
+| Constraint | Consequence |
+|---|---|
+| **No custom response headers.** | CSP ships as `<meta http-equiv>` (below). No `COOP`/`COEP`, hence single-threaded ffmpeg (§4). No `Strict-Transport-Security` of our own — GitHub's own HSTS on `*.github.io` covers it. |
+| **Project sites live under a subpath** (`user.github.io/hushscribe/`). | Vite `base` is set from an env var, defaulting to `/hushscribe/`; a custom domain sets it to `/`. All asset URLs stay relative, including `browserWasmURL: './privatemode.wasm'`. Getting this wrong is the classic "blank page on Pages, works locally" bug — the e2e suite runs against `vite preview` with the same `base`, so CI catches it. |
+| **Soft limits: 1 GB site, 100 GB/month bandwidth.** | Irrelevant for the app itself; worth remembering that the ffmpeg core alone is tens of megabytes and is served on demand. Lazy-loading it (§4) keeps typical page weight small. |
+| **Jekyll processing.** | A non-issue with the artifact-based deploy below, which uploads `dist/` as-is. No `.nojekyll` needed. |
+
+`.wasm` is served as `application/wasm`, so `WebAssembly.instantiateStreaming` works without
+a fallback path.
+
+#### Deploy workflow
+
+Separate from CI, runs on `main` **only after tests pass**, using the official
+artifact-based Pages actions — no `gh-pages` branch, no third-party deploy action:
+
+```yaml
+# .github/workflows/deploy.yml
+on:
+  push: { branches: [main] }
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  deploy:
+    environment: github-pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run build          # BASE_PATH baked in here
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: dist }
+      - uses: actions/deploy-pages@v4
+```
+
+No repository secrets are involved: the build takes no key, and the only credential the app
+ever handles is the one the user types into their own browser.
 
 ### CSP
 
-Set as a `<meta http-equiv>` so it works on hosts with no header control, and as a real
-header where the host allows it:
+GitHub Pages cannot set response headers, so the CSP ships as a `<meta http-equiv>` in
+`index.html`. That is the real, deployed policy — not a fallback:
 
 ```
 default-src 'none';
@@ -497,6 +572,12 @@ form-action 'none';
 
 `media-src blob:` is required for the object-URL player in §5.1; `wasm-unsafe-eval` is
 unavoidable, since both the attestation verifier and ffmpeg are WebAssembly.
+
+> **`frame-ancestors` does not work in a `<meta>` CSP** — it is header-only, and Pages gives
+> us no headers. So clickjacking is blocked the old way, with a two-line
+> `if (self !== top) { document.body.replaceChildren(...) }` guard at startup. Crude, but it
+> is the entire mitigation available on this host, and an invisible iframe of a page holding
+> an API key is worth blocking.
 
 > **TODO before first release:** run the app once with devtools open and pin the exact
 > manifest-CDN host the SDK fetches from, plus any host the ffmpeg worker needs. A CSP with a
@@ -542,6 +623,10 @@ a two-hour recording.**
 | Decision | Why |
 |---|---|
 | No backend | A backend that touches the audio would void the claim. There is nothing for it to do. |
+| GitHub Pages, free tier | Free, zero-ops, no server logs to leak, and the deployed bytes trace to a public build. |
+| Single-threaded ffmpeg core | Pages sets no headers → no COOP/COEP → no `SharedArrayBuffer`. Slower beats a third-party service worker. |
+| `base` from an env var | Project sites live under `/hushscribe/`; a custom domain does not. E2E runs with the same `base` so CI catches it. |
+| Deploy via `deploy-pages`, not a `gh-pages` branch | Official actions, no third-party deploy step touching the artifact. |
 | No framework | One screen, one form, one list. |
 | Vite, not raw `<script>` + importmap | ESM + peer dep + Wasm sidecar, all of which must be same-origin. |
 | Always `verbose_json` | Timestamps are a core feature, so pay the cost of a required language field once. |
