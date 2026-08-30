@@ -3,19 +3,34 @@
 **Transcribe confidential audio.** A static web page that transcribes recordings using
 [Privatemode.ai](https://docs.privatemode.ai/) confidential-computing inference.
 
+<h2 align="center">
+  <a href="https://dhcgn.github.io/hushscribe/">▶&nbsp; Open hushscribe</a>
+</h2>
+
+<p align="center">
+  <b><a href="https://dhcgn.github.io/hushscribe/">dhcgn.github.io/hushscribe</a></b><br>
+  Nothing to install and no account here &mdash; it runs in the browser tab you open it in.<br>
+  Bring a <a href="https://portal.privatemode.ai">Privatemode API key</a>, drop in a file,
+  get a timestamped transcript.<br>
+  <sub>You pay Privatemode about &euro;0.014 per audio minute; a five-minute recording costs
+  roughly seven cents.</sub>
+</p>
+
 Your recording is encrypted before it leaves the browser tab and stays encrypted the whole
 way — *including while the model is transcribing it*. Nobody along the chain can read it:
 not the inference provider, not the cloud it runs on. Ordinary encryption protects data in
 transit and at rest; confidential computing keeps it unreadable while it is being used.
 
-There is no backend. Bring an API key, drop a file, get a timestamped transcript.
+There is no backend, and no server of ours ever sees your recording.
 
 → **[ARCHITECTURE.md](ARCHITECTURE.md)** for how it works and why it is built this way.
 → **[AGENT.md](AGENT.md)** if you are an AI agent working on this repo.
 
 <p align="center">
+  <a href="https://dhcgn.github.io/hushscribe/">
   <img src="docs/screenshots/result.png" width="880"
        alt="A finished transcript: the audio player, the estimated cost, and a clickable timestamped segment list with .vtt, .srt, .txt, .json, Copy and Redo buttons.">
+  </a>
 </p>
 
 <table>
