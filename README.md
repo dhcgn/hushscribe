@@ -153,8 +153,40 @@ leave it on auto-detect and you get plain text. That coupling is the API's, not 
 
 ## Install it as an app
 
-The page ships a web app manifest, so browsers offer *Install* (desktop) or *Add to Home
-Screen* (mobile) and it runs in its own window.
+The page ships a web app manifest, so it installs like a native app and runs in its own
+window — no store, no packaging, the same static page either way.
+
+<table>
+  <tr>
+    <td width="43%" valign="top">
+      <img src="docs/screenshots/how-to-install-as-app.png" width="100%"
+           alt="A browser install prompt reading 'Install hushscribe — confidential speech-to-text app', publisher dhcgn.github.io, with Install and Not now buttons.">
+    </td>
+    <td width="57%" valign="top">
+      <img src="docs/screenshots/installed-app.png" width="100%"
+           alt="hushscribe running as a standalone Windows app in its own window, with its icon pinned to the taskbar.">
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <b>Installing.</b> On Windows, Chrome and Edge offer this from the address bar. The
+      publisher shown is <code>dhcgn.github.io</code> &mdash; the same page, not a repackaged
+      binary.
+    </td>
+    <td valign="top">
+      <b>Installed.</b> Its own window and taskbar icon. It still has no backend and still
+      stores everything locally; only the browser chrome has gone.
+    </td>
+  </tr>
+</table>
+
+**Android** — Chrome offers *Install app* from the ⋮ menu, or prompts you directly.
+**iPhone and iPad** — open it in Safari, then *Share* → *Add to Home Screen*. Both give you
+a home-screen icon that launches straight into the app, which is worth having if you
+transcribe from your phone.
+
+Being installed changes nothing about how it works: same encryption, same attested enclave,
+same `localStorage`. It is a shortcut and a window, not a different program.
 
 The service worker **caches nothing, deliberately**. hushscribe cannot work offline — every
 transcription needs the API — so a cache would buy nothing, while a stale one could pin an
