@@ -98,6 +98,19 @@ export default defineConfig(({ command }) => {
     test: {
       include: ['test/*.test.js'], // test/e2e/ belongs to Playwright
       environment: 'node',
+      coverage: {
+        provider: 'v8',
+        reporter: ['text-summary', 'json-summary', 'html'],
+        reportsDirectory: 'coverage',
+        /* Only the modules Vitest can actually reach. app.js is DOM wiring
+           exercised by Playwright against the real bundle, and measuring it here
+           would report a number that says more about the tool than the code.
+           Including it at 0% would be just as misleading in the other direction,
+           so the badge is labelled "unit coverage" and this list is what it means.
+           See ARCHITECTURE.md §6.5. */
+        include: ['src/gate.js', 'src/segments.js', 'src/pricing.js', 'src/manifest.js'],
+        thresholds: { statements: 95, branches: 90, functions: 95, lines: 95 },
+      },
     },
   };
 });

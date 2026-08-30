@@ -40,7 +40,7 @@ jobs:
       - run: npm ci
 
       # Gate the deploy on the tests, so main can never publish a broken page.
-      - run: npm run test:unit
+      - run: npm run coverage
 
       - name: Build
         # A project site lives at /<repo>/. Set BASE_PATH to / if you move this
@@ -48,6 +48,11 @@ jobs:
         run: npm run build
         env:
           BASE_PATH: /hushscribe/
+
+      # Publishes dist/coverage.json for the shields.io endpoint badge. Must run
+      # after the build, which creates dist/.
+      - name: Publish the coverage badge endpoint
+        run: npm run coverage:badge
 
       - name: Assert no API key reached the bundle
         run: |

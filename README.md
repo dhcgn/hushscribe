@@ -13,6 +13,9 @@
   <a href="LICENSE"><img
      src="https://img.shields.io/badge/licence-MIT-1f3bc4"
      alt="MIT licence"></a>
+  <a href="https://github.com/dhcgn/hushscribe/actions/workflows/ci.yml"><img
+     src="https://img.shields.io/endpoint?url=https%3A%2F%2Fdhcgn.github.io%2Fhushscribe%2Fcoverage.json"
+     alt="Unit test coverage"></a>
   <img src="https://img.shields.io/badge/backend-none-1f3bc4" alt="No backend">
 </p>
 
@@ -120,12 +123,19 @@ Then open the page, paste a [Privatemode API key](https://portal.privatemode.ai)
 | `npm run preview` | Serve `dist/` on :4173, exactly as Pages will |
 | `npm test` | Unit tests, then the GUI suite |
 | `npm run test:unit` | Vitest — pure logic, no browser, fast |
+| `npm run coverage` | Vitest with coverage, and fails below the thresholds |
 | `npm run test:e2e` | Playwright against the real production bundle |
 | `npm run test:ui` | Playwright's UI mode, for debugging a failing test |
 | `npm run test:smoke` | **Opt-in.** Transcribes `test-data/` against a real enclave. Costs credit. |
 
 No test needs an API key except `test:smoke`. The GUI suite injects a stand-in client at
 the single seam production code exposes, so no mock code ever ships.
+
+**The coverage badge counts the four pure modules only** — `gate`, `segments`, `pricing`,
+`manifest`. `app.js` is DOM wiring, covered by Playwright against the real built bundle
+rather than by Vitest, so measuring it here would report a number about the tool rather than
+the code. Hence *unit* coverage, and this is what it means. CI enforces the thresholds on
+every push, so the figure cannot quietly rot.
 
 `test-data/` holds ~83 MB of public-domain speeches (MLK, JFK, Eisenhower, a German talk)
 across every supported container, plus `.opus` files that must be *rejected*. Only
