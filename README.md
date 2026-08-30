@@ -11,6 +11,7 @@ transit and at rest; confidential computing keeps it unreadable while it is bein
 There is no backend. Bring an API key, drop a file, get a timestamped transcript.
 
 → **[ARCHITECTURE.md](ARCHITECTURE.md)** for how it works and why it is built this way.
+→ **[AGENT.md](AGENT.md)** if you are an AI agent working on this repo.
 
 ---
 
