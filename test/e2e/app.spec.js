@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
-import { DIGEST, LINES, installFakeClient, makeUnsupported, makeWav } from './fake-client.js';
+import {
+  DIGEST, LINES, installFakeClient, makeUndecodable, makeUnsupported, makeWav,
+} from './fake-client.js';
 
 const KEY = 'pm-test-key';
 
@@ -235,6 +237,43 @@ test.describe('prompt budget', () => {
 
     await page.locator('#prompts').selectOption({ index: 1 });
     await expect(prompt).toHaveValue('Dr. Bergström, the Halvorsen case');
+  });
+});
+
+test.describe('cost estimate', () => {
+  test('shows the rate before anything is dropped', async ({ page }) => {
+    await expect(page.locator('#rate')).toContainText('€0.014/min');
+    await page.getByLabel('Model').selectOption('voxtral-mini-3b');
+    await expect(page.locator('#rate')).toContainText('€0.004/min');
+  });
+
+  test('prices a file from its real duration', async ({ page }) => {
+    await unlock(page, 'en');
+    // makeWav() is 12 s: 12/60 × €0.014 = €0.0028, i.e. under a cent.
+    await page.locator('#picker').setInputFiles(wav);
+
+    const price = page.locator('.card .price').first();
+    await expect(price).toContainText('12 s');
+    await expect(price).toContainText('under €0.01');
+    await expect(price).toContainText('€0.014/min');
+    await expect(price).toContainText('September 2026');
+  });
+
+  test('scales with duration', async ({ page }) => {
+    await unlock(page, 'en');
+    // 30 min at €0.014/min = €0.42.
+    await page.locator('#picker').setInputFiles(makeWav('long.wav', 1800));
+    await expect(page.locator('.card .price').first()).toContainText('€0.42');
+  });
+
+  // An estimate nobody can check is worse than no estimate.
+  test('says nothing when the duration cannot be read', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#picker').setInputFiles(makeUndecodable());
+
+    const card = page.locator('.card').first();
+    await expect(card.locator('.seg')).toHaveCount(LINES.length);
+    await expect(card.locator('.price')).toHaveText('');
   });
 });
 

@@ -93,3 +93,12 @@ export function makeUnsupported(name = 'interview.opus') {
   writeFileSync(path, Buffer.alloc(2048));
   return path;
 }
+
+/** Accepted by the gate but undecodable, so no duration and no honest price. */
+export function makeUndecodable(name = 'garbled.mp3') {
+  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'test-results', 'fixtures');
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, name);
+  writeFileSync(path, Buffer.from('not actually audio, just bytes with an .mp3 name'));
+  return path;
+}

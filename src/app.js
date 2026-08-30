@@ -4,6 +4,7 @@ import { gate, isPlayable, isVideo } from './gate.js';
 import {
   clock, toVTT, toSRT, toTXT, activeIndex, promptBudget, shortDigest,
 } from './segments.js';
+import { PRICES_DATED, estimateLine, rateLabel } from './pricing.js';
 
 /* An invisible iframe of a page holding an API key is worth blocking, and
    frame-ancestors is header-only — GitHub Pages gives us no headers (§8.1). */
@@ -130,6 +131,17 @@ async function transcribe(file) {
     card.append(media);
   }
 
+  // Billing is per audio minute, so the cost is knowable the moment the browser
+  // reads the duration — which is long before the transcript comes back. Probed
+  // separately from playback: pricing a file does not require rendering it.
+  const priced = el('p', { className: 'price' });
+  card.append(priced);
+  probeDuration(file, media).then((seconds) => {
+    const line = estimateLine(seconds, $('model').value);
+    // No duration means no honest estimate, so say nothing at all.
+    if (line) priced.textContent = `${line} · estimate, ${PRICES_DATED} prices`;
+  });
+
   // Timestamps come from verbose_json, which the API accepts only alongside a
   // language. No language → plain text. Degrade, don't demand. (§3.3)
   const lang = $('lang').value;
@@ -178,6 +190,27 @@ async function transcribe(file) {
   });
   save(K.hist, hist.slice(0, HISTORY_MAX));
   renderData(); renderHistory();
+}
+
+/**
+ * Duration in seconds, or null if the browser cannot decode the container.
+ * Reuses the visible player when there is one; otherwise probes with a detached
+ * element, since a file we decline to render may still be priceable. Resolves
+ * null rather than hanging when the format defeats the decoder.
+ */
+function probeDuration(file, existing) {
+  return new Promise((resolve) => {
+    const probe = existing ?? el('audio', { preload: 'metadata', src: URL.createObjectURL(file) });
+    const done = (v) => {
+      clearTimeout(timer);
+      if (!existing) URL.revokeObjectURL(probe.src);
+      resolve(v);
+    };
+    const timer = setTimeout(() => done(null), 5000);
+    if (probe.readyState >= 1) return done(probe.duration);
+    probe.addEventListener('loadedmetadata', () => done(probe.duration), { once: true });
+    probe.addEventListener('error', () => done(null), { once: true });
+  });
 }
 
 function cardHead(name) {
@@ -246,6 +279,10 @@ function take(files) {
   }
   // Sequential: honest progress, no rate-limit games, less code.
   return [...files].reduce((p, f) => p.then(() => transcribe(f)), Promise.resolve());
+}
+
+function renderRate() {
+  $('rate').textContent = `${rateLabel($('model').value)} of audio · ${PRICES_DATED} prices`;
 }
 
 /* ═══ prompts ══════════════════════════════════════════════════════════════ */
@@ -332,7 +369,7 @@ $('verify').addEventListener('click', verify);
 $('key').addEventListener('keydown', (e) => { if (e.key === 'Enter') verify(); });
 $('prompt').addEventListener('input', renderCount);
 $('lang').addEventListener('change', (e) => save(K.lang, e.target.value));
-$('model').addEventListener('change', (e) => save(K.model, e.target.value));
+$('model').addEventListener('change', (e) => { save(K.model, e.target.value); renderRate(); });
 
 drop.addEventListener('click', () => picker.click());
 drop.addEventListener('keydown', (e) => {
@@ -427,4 +464,4 @@ $('model').value = load(K.model, 'whisper-large-v3');
 $('guide').open = !savedKey;
 
 setProof('idle');
-renderPrompts(); renderData(); renderHistory(); renderCount();
+renderPrompts(); renderData(); renderHistory(); renderCount(); renderRate();

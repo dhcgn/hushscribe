@@ -53,8 +53,10 @@
           <b>Get an API key.</b>
           <p>
             Sign up at <a href="https://portal.privatemode.ai" target="_blank" rel="noreferrer">portal.privatemode.ai</a>
-            and copy the key it gives you. That key is how transcription gets paid for. It
-            stays in your browser &mdash; this page has no server to send it to.
+            and copy the key it gives you. You pay Privatemode by the audio minute &mdash;
+            about &euro;0.84 for an hour with Whisper, &euro;0.24 with Voxtral. hushscribe
+            estimates the cost of each file before the transcript comes back. The key stays
+            in your browser; this page has no server to send it to.
           </p>
         </div>
       </li>
@@ -116,12 +118,22 @@
           <option value="whisper-large-v3">Whisper large-v3 &mdash; best accuracy</option>
           <option value="voxtral-mini-3b">Voxtral Mini 3B &mdash; faster</option>
         </select>
+        <p class="price" id="rate"></p>
         <details class="help">
           <summary>Which should I pick?</summary>
           <p>
             Whisper, unless you are in a hurry. It copes better with accents, background
             noise, and poor recordings. Voxtral is quicker but wants clean audio &mdash; if
             the result looks wrong, run it again with Whisper.
+          </p>
+          <p>
+            You pay Privatemode per audio minute, not per file: <b>&euro;0.014/min</b> for
+            Whisper, <b>&euro;0.004/min</b> for Voxtral. An hour-long recording is about
+            &euro;0.84 or &euro;0.24. Prices as of September 2026, plus VAT where applicable
+            &mdash; check
+            <a href="https://www.privatemode.ai/pricing" target="_blank" rel="noreferrer">privatemode.ai/pricing</a>
+            for the current figures. hushscribe shows an estimate for each file once your
+            browser has read its length.
           </p>
         </details>
       </div>
@@ -209,12 +221,23 @@
   </section>
 
   <footer class="foot">
+    <p class="credit">
+      hushscribe is a front end and nothing more. The confidential computing that makes it
+      possible is
+      <a href="https://www.privatemode.ai/" target="_blank" rel="noreferrer">Privatemode</a>,
+      built by
+      <a href="https://www.edgeless.systems/" target="_blank" rel="noreferrer">Edgeless Systems</a>,
+      a German company. They run the attested enclaves, the models, and the encryption; this
+      page just talks to them from your browser. Without their work there would be nothing
+      here worth trusting.
+    </p>
     <a href="https://github.com/dhcgn/hushscribe" target="_blank" rel="noreferrer">Source on GitHub</a>
     <p>
       A static page with no backend, built and published straight from that repository.
       Every claim on this page is checkable: read the code that runs in your browser, then
       <a href="https://docs.privatemode.ai/reference/sdk/verify-from-source" target="_blank" rel="noreferrer">rebuild the SDK from source</a>
-      and compare it to what ships.
+      and compare it to what ships. Transcription is billed by Privatemode per audio minute
+      &mdash; see <a href="https://www.privatemode.ai/pricing" target="_blank" rel="noreferrer">their pricing</a>.
     </p>
   </footer>
 

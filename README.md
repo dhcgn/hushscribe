@@ -14,6 +14,35 @@ There is no backend. Bring an API key, drop a file, get a timestamped transcript
 
 ---
 
+## Built on Privatemode, by Edgeless Systems
+
+hushscribe is a front end and nothing more. Everything that makes the claim above true —
+the attested confidential VMs, the remote-attestation verifier, the end-to-end encryption,
+the models — is [**Privatemode**](https://www.privatemode.ai/), built by
+[**Edgeless Systems**](https://www.edgeless.systems/), a German company working on
+confidential computing.
+
+This repository contributes a browser UI and the discipline needed to keep that UI
+trustworthy. It contributes none of the cryptography. Without their work there would be
+nothing here worth trusting.
+
+## What it costs
+
+Transcription is billed by Privatemode **per audio minute**, not per file or per request:
+
+| Model | Rate | One hour of audio |
+|---|---|---|
+| `whisper-large-v3` | €0.014 / min | ≈ €0.84 |
+| `voxtral-mini-3b` | €0.004 / min | ≈ €0.24 |
+
+Prices as of **September 2026**, plus VAT where applicable — see
+[privatemode.ai/pricing](https://www.privatemode.ai/pricing) for current figures.
+hushscribe estimates each file's cost as soon as your browser reads its length, before the
+transcript comes back. hushscribe itself is free and takes no cut; you pay Privatemode
+directly.
+
+---
+
 ## Quick start
 
 ```bash
@@ -39,6 +68,11 @@ Then open the page, paste a [Privatemode API key](https://portal.privatemode.ai)
 
 No test needs an API key except `test:smoke`. The GUI suite injects a stand-in client at
 the single seam production code exposes, so no mock code ever ships.
+
+`test-data/` holds ~83 MB of public-domain speeches (MLK, JFK, Eisenhower, a German talk)
+across every supported container, plus `.opus` files that must be *rejected*. Only
+`test:smoke` reads them. **CI checks out the repo without them** — a non-cone sparse
+checkout paired with a blobless clone, so the bytes are never fetched on a build.
 
 ## Local development key
 

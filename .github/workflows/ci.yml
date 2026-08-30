@@ -16,7 +16,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # test-data/ is ~83 MB of real speech used only by the opt-in smoke suite.
+      # Non-cone sparse checkout keeps it out of the working tree, and checkout
+      # pairs that with a blobless partial clone, so the bytes are never fetched.
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            /*
+            !/test-data
+          sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@v4
         with:
