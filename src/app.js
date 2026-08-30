@@ -130,10 +130,6 @@ function setProof(state, manifest, manifestDigest) {
 }
 
 /* ═══ transcribe ═══════════════════════════════════════════════════════════ */
-/* Dropped files, keyed by the history timestamp, for this tab only. Never
-   persisted — Redo works for files from this session and honestly cannot for
-   anything older, because the media was deliberately not kept (§5.3). */
-const sessionFiles = new Map();
 const objectUrls = [];
 const trackUrl = (u) => { objectUrls.push(u); return u; };
 
@@ -201,6 +197,16 @@ async function transcribe(file) {
   chain.textContent = shortHex(sealedMeasurement, 12);
   chain.title = sealedMeasurement;
 
+  // Redo re-runs this same file with whatever model, language, and prompt are
+  // selected *now* — the usual reason being a wrong language. Only offered here,
+  // never in history, because history keeps text and never the media (§5.3).
+  const redo = el('button', {
+    textContent: 'Redo',
+    title: 'Transcribe this file again with the settings currently selected above',
+  });
+  redo.dataset.act = 'redo';
+  redo.addEventListener('click', () => take([file]));
+
   if (segments) {
     if (media) {
       // The browser renders the captions; we only hand it a VTT blob.
@@ -209,20 +215,16 @@ async function transcribe(file) {
         default: true, kind: 'captions', srclang: lang, label: lang,
       }));
     }
-    card.append(segmentList(segments, media), exportBar(file.name, segments));
+    card.append(segmentList(segments, media), exportBar(file.name, segments, redo));
   } else {
     card.append(
       el('p', { className: 'plain', textContent: res.text ?? '' }),
-      exportBar(file.name, null, null, res.text ?? ''),
+      exportBar(file.name, null, redo, res.text ?? ''),
       el('p', { className: 'note', textContent: 'Set a language to get timestamps and captions.' }),
     );
   }
 
   const at = new Date().toISOString();
-  // Session-only: the file itself is never stored (§5.3), but keeping it in
-  // memory for this tab is what makes Redo possible without a re-drop.
-  sessionFiles.set(at, file);
-
   const hist = load(K.hist, []);
   hist.unshift({
     name: file.name, model: $('model').value, lang: lang || 'auto', at,
@@ -400,37 +402,20 @@ function renderHistory() {
         textContent: `${new Date(h.at).toLocaleString()} · ${h.model} · ${h.lang}`,
       }),
     );
-    const actions = el('span', { className: 'hist-actions' });
-
-    // Redo needs the audio, and the audio was deliberately never stored. It is
-    // therefore offered only while the file is still in this tab's memory.
-    const file = sessionFiles.get(h.at);
-    if (file) {
-      const redo = el('button', {
-        textContent: 'Redo',
-        title: 'Transcribe this file again with the settings currently selected above',
-      });
-      redo.addEventListener('click', () => {
-        $('results').scrollIntoView({ block: 'start' });
-        take([file]);
-      });
-      actions.append(redo);
-    }
-
+    // No Redo here: history stores text and never the media (§5.3), so there is
+    // nothing to re-transcribe from. Redo lives on the result card instead.
     const del = el('button', { textContent: 'Delete' });
     del.addEventListener('click', () => {
       const list = load(K.hist, []);
       list.splice(i, 1);
       save(K.hist, list);
-      sessionFiles.delete(h.at);
       renderHistory(); renderData();
     });
-    actions.append(del);
 
     const body = el('div', { className: 'hist-body' });
     body.append(
       h.segments ? segmentList(h.segments, null) : el('p', { className: 'plain', textContent: h.text }),
-      exportBar(h.name, h.segments, actions, h.text),
+      exportBar(h.name, h.segments, del, h.text),
     );
     if (h.measurement) {
       body.append(el('p', {

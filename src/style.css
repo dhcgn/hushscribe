@@ -278,7 +278,6 @@ button.link {
   color: var(--ink); word-break: break-all;
 }
 
-.hist-actions { display: inline-flex; gap: 10px; }
 .hist-chain {
   margin: 12px 0 0; font: 400 11px/1.5 var(--mono); color: var(--slate);
 }

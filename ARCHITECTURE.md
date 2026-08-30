@@ -169,11 +169,17 @@ That is the whole design rationale for the file split — not layering for its o
 real: Vite hashes and minifies a linked stylesheet, and `style-src 'self'` forbids the
 inline `<style>` block that would otherwise have to carry it.
 
-History entries carry a **Redo** button that re-runs the file with whatever model, language,
-and prompt are currently selected — the usual reason to redo is a wrong language (§5.1). It
-appears only while the file is still in this tab's memory: the media is deliberately never
-stored (§5.3), so after a reload there is nothing to redo from, and offering a button that
-cannot work would be worse than offering none.
+Result cards carry a **Redo** button that re-runs the same file with whatever model,
+language, and prompt are currently selected — the usual reason to redo being a wrong
+language (§5.1).
+
+**Redo lives on the result card and nowhere else.** The first attempt put it in history too,
+backed by a session-only `Map` of dropped files. That was working against the design: history
+stores text and never the media (§5.3), so the button could only work for entries from the
+current tab and had to hide itself the rest of the time — a control whose availability the
+user could not predict. Keeping it where the `File` is genuinely in scope removed the cache,
+the conditional rendering, and the explanation they both needed. The boundary was already
+correct; the button was on the wrong side of it.
 
 **Skipped:** a framework, a router, a state library, a CSS framework. The UI is a form, a
 dropzone, a player, and a list.

@@ -127,7 +127,7 @@ test.describe('transcription', () => {
     await expect(card.locator('.plain')).toContainText(LINES[0]);
     await expect(card.locator('.seg')).toHaveCount(0);
     await expect(card.locator('track')).toHaveCount(0);
-    await expect(card.locator('.row button')).toHaveText(['.txt', '.json', 'Copy']);
+    await expect(card.locator('.row button')).toHaveText(['.txt', '.json', 'Copy', 'Redo']);
     await expect(card).toContainText('Set a language to get timestamps');
   });
 
@@ -321,36 +321,38 @@ test.describe('convenience', () => {
     await expect(copy).toHaveText('Copy', { timeout: 4000 });
   });
 
-  test('redoes a history entry with the settings currently selected', async ({ page }) => {
+  test('redoes a result card with the settings currently selected', async ({ page }) => {
     await unlock(page, 'en');
     await page.locator('#picker').setInputFiles(wav);
-    await expect(page.locator('.hist')).toHaveCount(1);
+    await expect(page.locator('#results > article')).toHaveCount(1);
 
     // Change the settings, then redo: the new run must use them, not the old ones.
     await page.getByLabel('Spoken language').selectOption('de');
     await page.getByLabel('Model').selectOption('voxtral-mini-3b');
+    await page.locator('#results > article').first().locator('[data-act="redo"]').click();
 
-    const entry = page.locator('.hist').first();
-    await entry.locator('summary').click();
-    await entry.getByRole('button', { name: 'Redo' }).click();
-
-    await expect(page.locator('.hist')).toHaveCount(2);
-    await expect(page.locator('.hist').first().locator('.hist-meta'))
-      .toContainText('voxtral-mini-3b');
-    await expect(page.locator('.hist').first().locator('.hist-meta')).toContainText('de');
+    await expect(page.locator('#results > article')).toHaveCount(2);
+    const newest = page.locator('.hist').first().locator('.hist-meta');
+    await expect(newest).toContainText('voxtral-mini-3b');
+    await expect(newest).toContainText('de');
   });
 
-  // The media was deliberately never stored, so Redo cannot be offered for it.
-  test('offers no Redo after a reload, when the file is gone', async ({ page }) => {
+  // History stores text and never the media, so there is nothing to redo from.
+  test('offers Redo on results only, never in history', async ({ page }) => {
     await unlock(page, 'en');
     await page.locator('#picker').setInputFiles(wav);
-    await expect(page.locator('.hist')).toHaveCount(1);
+    await expect(page.locator('#results > article [data-act="redo"]')).toHaveCount(1);
+    await expect(page.locator('#history [data-act="redo"]')).toHaveCount(0);
 
-    await page.reload();
     const entry = page.locator('.hist').first();
     await entry.locator('summary').click();
     await expect(entry.getByRole('button', { name: 'Redo' })).toHaveCount(0);
     await expect(entry.getByRole('button', { name: 'Delete' })).toBeVisible();
+
+    // Still absent after a reload, when the file is definitively gone.
+    await page.reload();
+    await page.locator('.hist').first().locator('summary').click();
+    await expect(page.locator('#history [data-act="redo"]')).toHaveCount(0);
   });
 
   test('warns that a wrong language makes Whisper translate', async ({ page }) => {
