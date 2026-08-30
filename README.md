@@ -190,13 +190,43 @@ window — no store, no packaging, the same static page either way.
   </tr>
 </table>
 
-**Android** — Chrome offers *Install app* from the ⋮ menu, or prompts you directly.
-**iPhone and iPad** — open it in Safari, then *Share* → *Add to Home Screen*. Both give you
-a home-screen icon that launches straight into the app, which is worth having if you
-transcribe from your phone.
-
 Being installed changes nothing about how it works: same encryption, same attested enclave,
 same `localStorage`. It is a shortcut and a window, not a different program.
+
+## On a phone
+
+<table>
+  <tr>
+    <td width="30%" valign="top">
+      <img src="docs/screenshots/smartphone_android.jpg" width="100%"
+           alt="hushscribe on an Android phone in compact view: the sealed attestation row with an Edit key button, and the model, language and prompt controls stacked in a single column.">
+    </td>
+    <td valign="top">
+      <p>
+        The layout is a single column on a narrow screen, so nothing is cut off and nothing
+        needs pinching. Recording a meeting or an interview on your phone and transcribing it
+        on the same device is a first-class path, not a fallback &mdash; the file never leaves
+        the handset except encrypted, exactly as on a desktop.
+      </p>
+      <p>
+        <b>Compact view earns its keep here.</b> This is it enabled: the attestation row, the
+        rate, the wrong-language warning and every control, with the explanatory text out of
+        the way. The <b>Edit key</b> button in the attestation row is how you reach the API
+        key field once it has been stored.
+      </p>
+      <p>
+        <b>Android</b> &mdash; Chrome offers <i>Install app</i> from the &#8942; menu, or
+        prompts you directly.<br>
+        <b>iPhone and iPad</b> &mdash; open it in Safari, then <i>Share</i> &rarr;
+        <i>Add to Home Screen</i>.
+      </p>
+      <p>
+        Either way you get a home-screen icon that launches straight into the app, with no
+        address bar in the way.
+      </p>
+    </td>
+  </tr>
+</table>
 
 The service worker **caches nothing, deliberately**. hushscribe cannot work offline — every
 transcription needs the API — so a cache would buy nothing, while a stale one could pin an
