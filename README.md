@@ -4,7 +4,7 @@
 [Privatemode.ai](https://docs.privatemode.ai/) confidential-computing inference.
 
 <h2 align="center">
-  <a href="https://dhcgn.github.io/hushscribe/">▶&nbsp; Open hushscribe</a>
+  <a href="https://dhcgn.github.io/hushscribe/">▶&nbsp; Click here for hushscribe</a>
 </h2>
 
 <p align="center">
@@ -21,7 +21,7 @@ way — *including while the model is transcribing it*. Nobody along the chain c
 not the inference provider, not the cloud it runs on. Ordinary encryption protects data in
 transit and at rest; confidential computing keeps it unreadable while it is being used.
 
-There is no backend, and no server of ours ever sees your recording.
+There is no backend. Bring an API key, drop a file, get a timestamped transcript.
 
 → **[ARCHITECTURE.md](ARCHITECTURE.md)** for how it works and why it is built this way.
 → **[AGENT.md](AGENT.md)** if you are an AI agent working on this repo.
