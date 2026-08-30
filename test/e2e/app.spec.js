@@ -446,12 +446,27 @@ test.describe('view toggle', () => {
     await expect(page.locator('#access')).toBeVisible();
   });
 
-  test('drops the duplicate status chip, keeping the proof row', async ({ page }) => {
+  // The header is sticky, so the chip is the only status still on screen once the
+  // results scroll past. It stays in both views.
+  test('keeps the status chip visible in both views, and while scrolled', async ({ page }) => {
     await unlock(page);
     await expect(page.locator('#chip')).toBeVisible();
+
     await page.locator('#viewToggle').click();
-    await expect(page.locator('#chip')).toBeHidden();
+    await expect(page.locator('#chip')).toBeVisible();
+    await expect(page.locator('#chip')).toHaveText('sealed');
     await expect(page.locator('#proofLine')).toBeVisible();
+
+    await page.locator('#picker').setInputFiles(wav);
+    await expect(page.locator('.card .seg')).toHaveCount(LINES.length);
+    await page.locator('.foot').scrollIntoViewIfNeeded();
+    await expect(page.locator('#chip')).toBeInViewport();
+  });
+
+  test('shows the unverified state in the header before any key', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#chip')).toBeVisible();
+    await expect(page.locator('#chip')).toHaveText('unverified');
   });
 
   test('survives a reload with no flash of the roomy layout', async ({ page }) => {

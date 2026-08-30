@@ -491,10 +491,15 @@ It is driven entirely by CSS from a `data-view` attribute on `<html>`, so the Ja
 flips an attribute and a label. What gets hidden is decided by one marker class, `prose`, on
 the teaching material: the hero copy, the walkthrough, and the four help disclosures.
 
-Compact additionally drops descriptions and status chatter (`.note:not(.warn)`), the dropzone
-blurb, and the header seal chip — the proof row already reports the same state and says more,
-so two indicators were one too many. The **API key field hides once a key is stored**
-(`data-key="saved"`): it is a question, and it stops needing to be asked once answered.
+Compact additionally drops descriptions and status chatter (`.note:not(.warn)`) and the
+dropzone blurb. The **API key field hides once a key is stored** (`data-key="saved"`): it is
+a question, and it stops needing to be asked once answered.
+
+**The header status chip stays in both views.** An earlier pass hid it in compact as a
+duplicate of the proof row, which was wrong: the header is `position: sticky`, so once the
+results scroll past, the chip is the *only* place `unverified` / `sealed` is still on screen.
+The proof row is the detail; the chip is the persistent indicator. Compact only shrinks it. A
+test scrolls to the footer and asserts the chip is still in the viewport.
 
 **What compact never hides:** the wrong-language warning, the per-minute rate, the
 attestation row, and any error. `prose` marks explanation, not anything a user needs in order

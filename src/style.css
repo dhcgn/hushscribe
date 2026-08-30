@@ -316,8 +316,10 @@ button.link {
 :root[data-view="compact"] .drop p { display: none; }
 :root[data-view="compact"] .drop { padding: 20px 24px; }
 
-/* One status indicator, not two: the proof row already says it, and says more. */
-:root[data-view="compact"] .seal-chip { display: none; }
+/* The chip stays in both views. It is not a duplicate of the proof row: the
+   header is sticky, so the chip is the only status you can still see once the
+   results have scrolled past. Compact just makes it smaller. */
+:root[data-view="compact"] .seal-chip { padding: 5px 9px; font-size: 10px; }
 :root[data-view="compact"] .hero { padding: 14px 0 0; }
 :root[data-view="compact"] .proof { margin: 0; max-width: none; width: fit-content; }
 :root[data-view="compact"] .proof summary { padding: 6px 10px; font-size: 11.5px; gap: 7px; }
