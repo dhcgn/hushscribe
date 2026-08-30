@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
-  DIGEST, LINES, installFakeClient, makeUndecodable, makeUnsupported, makeWav,
+  LINES, MANIFEST, MEASUREMENT, PROOF_LINE,
+  installFakeClient, makeUndecodable, makeUnsupported, makeWav,
 } from './fake-client.js';
 
 const KEY = 'pm-test-key';
@@ -28,14 +29,39 @@ test.describe('attestation', () => {
     await expect(page.locator('#guide')).toHaveAttribute('open', '');
   });
 
-  test('collapses the proof to eight hex characters, full digest one click away', async ({ page }) => {
+  test('summarises the enclave, with the full measurement one click away', async ({ page }) => {
     await unlock(page);
-    await expect(page.locator('#proofLine')).toHaveText('sha256:9f2c4a1e');
+    await expect(page.locator('#proofLine')).toHaveText(PROOF_LINE);
     await expect(page.locator('#proofMark')).toHaveText('✓');
 
     await expect(page.locator('#digest')).toBeHidden();
     await page.locator('#proof summary').click();
-    await expect(page.locator('#digest')).toHaveText(DIGEST);
+
+    const detail = page.locator('#digest');
+    await expect(detail).toContainText('SEV-SNP launch measurement');
+    await expect(detail).toContainText(MEASUREMENT);
+    await expect(detail).toContainText('Genoa');
+    await expect(detail).toContainText(/Manifest SHA-256/);
+    await expect(detail).toContainText(/[0-9a-f]{64}/);
+    await expect(detail).toContainText('coordinator');
+  });
+
+  // The live page once read "✓(manifes" because production expected a field the
+  // manifest has never had, and the fake agreed with it. Guard both directions.
+  test('never renders a placeholder in place of a measurement', async ({ page }) => {
+    await unlock(page);
+    const line = await page.locator('#proofLine').textContent();
+    expect(line).not.toMatch(/manifest carried|undefined|null|NaN/);
+    expect(line.length).toBeGreaterThan(8);
+  });
+
+  test('says "Verified" rather than inventing one when the manifest is bare', async ({ page }) => {
+    await installFakeClient(page, { manifest: {} });
+    await page.goto('.');
+    await unlock(page);
+
+    await expect(page.locator('#proofLine')).toHaveText(/^(Verified|manifest [0-9a-f]{8})$/);
+    await expect(page.locator('#chip')).toHaveText('sealed');
   });
 
   test('reports a failed attestation instead of proceeding', async ({ page }) => {
@@ -62,7 +88,7 @@ test.describe('transcription', () => {
 
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
-    await expect(card.locator('.card-chain')).toHaveText(DIGEST);
+    await expect(card.locator('.card-chain')).toHaveText(MANIFEST.ReferenceValues.snp[0].TrustedMeasurement);
     await expect(card.locator('.seg').first()).toContainText(LINES[0]);
 
     // The browser parsed our generated WebVTT — the whole reason there is no

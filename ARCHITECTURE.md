@@ -43,6 +43,21 @@ npm package**. Before the first request it:
 `client.verify()` returns the `manifest` it verified against. **hushscribe surfaces that in
 the UI** (§5). Without showing it, the claim is marketing; with it, it is checkable.
 
+The manifest has **no single "digest" field**. Its real shape — the SDK's `manifest.d.ts`
+and the [reference](https://docs.privatemode.ai/reference/sdk/manifest) — is:
+
+```
+{ Policies:              { <policyHash>: { SANs, WorkloadSecretID, Role? } },
+  ReferenceValues:       { snp: [{ ProductName, TrustedMeasurement, MinimumTCB, ... }] },
+  SeedshareOwnerPubKeys: [ ... ] }
+```
+
+`ReferenceValues.snp[].TrustedMeasurement` is the **SEV-SNP launch measurement**: 96 hex
+characters identifying the exact confidential-VM image. That is the enclave identity worth
+showing. `src/manifest.js` reads it, and additionally computes SHA-256 over
+`client.manifestBytes` — the raw bytes, never a re-serialised object, because the SDK warns
+JSON round-tripping can alter them and a digest nobody can reproduce is noise.
+
 The SDK is [reproducibly buildable from source](https://docs.privatemode.ai/reference/sdk/verify-from-source)
 (`nix build .#sdk.js` against `github.com/edgelesssys/privatemode-public`, then `diff -r`
 against the npm tarball). We pin the SDK version and record the expected Wasm hash so a
@@ -125,6 +140,7 @@ src/app.js                  # UI, storage, client lifecycle, transcribe loop
 src/gate.js                 # pure: format + size admission        (39 unit tests)
 src/segments.js             # pure: VTT/SRT/text, prompt budget    (40 unit tests)
 src/pricing.js              # pure: per-minute rates, estimates    (29 unit tests)
+src/manifest.js             # pure: SNP measurement, manifest hash (22 unit tests)
 src/style.css               # all styles; hashed and minified by Vite
 src/reencode.js             # stage 2 — dynamic import(), pulls in ffmpeg.wasm
 
@@ -135,7 +151,9 @@ playwright.smoke.config.js  # opt-in real-enclave suite
 test/gate.test.js           # vitest
 test/segments.test.js       # vitest
 test/pricing.test.js        # vitest
-test/e2e/app.spec.js        # playwright, drives the real UI      (24 tests)
+test/manifest.test.js       # vitest, against a real captured manifest
+test/fixtures/manifest.json # a genuine manifest from cdn.confidential.cloud
+test/e2e/app.spec.js        # playwright, drives the real UI      (26 tests)
 test/e2e/fake-client.js     # stand-in client + generated fixtures (never shipped)
 test/e2e/smoke.spec.js      # @smoke — real key, real enclave, real money
 
@@ -318,8 +336,9 @@ Single screen, top to bottom:
 
 1. **The claim**, from §1 — the headline, and one set-apart line naming what confidential
    computing adds over ordinary encryption: data stays unreadable *while it is being used*.
-2. **Proof row.** One line, collapsed by default: a green check and the digest's first eight
-   hex characters — `✓ sha256:9f2c4a1e`. Expanding it (a native `<details>`, same idiom as
+2. **Proof row.** One line, collapsed by default: a green check, the CPU product, and the
+   first eight characters of the enclave measurement — `✓ Genoa · ea6a6655`. Expanding it
+   (a native `<details>`, same idiom as
    history) gives the full measurement, the verification time, and links to the
    [attestation docs](https://docs.privatemode.ai/security/attestation/overview) and
    [SDK source verification](https://docs.privatemode.ai/reference/sdk/verify-from-source).
@@ -540,7 +559,43 @@ npm run test:smoke      # playwright test -c playwright.smoke.config.js
 Never wire this into pull-request CI: fork PRs cannot read secrets, and every run costs
 money. A scheduled job with a repository secret is the right home if it ever needs one.
 
-### 6.3 GitHub Actions
+### 6.3 Fakes must mirror a captured response
+
+The seam in §6.2 has one failure mode, and it bit in production. The fake returned
+`{ manifest: { digest: 'sha256:…' } }`; production was written to read `manifest.digest`.
+Both agreed, 24 GUI tests passed, CI was green, and the live page rendered:
+
+```
+✓(manifes
+(manifest carried no digest)
+```
+
+The real manifest has never had a `digest` field. Two invented artefacts agreeing with each
+other is not a test — **a fake that does not mirror the real contract tests nothing but
+itself.** The seam is still right; what was missing was grounding.
+
+So `test/e2e/fake-client.js` is now derived from a captured response, and
+`test/fixtures/manifest.json` is a real manifest fetched from
+`cdn.confidential.cloud/privatemode/v2/manifest.json`. `test/manifest.test.js` asserts
+against those real bytes, including one test whose only job is to pin the fact that killed
+us:
+
+```js
+it('has no digest field — the assumption that caused the bug', () => {
+  expect('digest' in REAL).toBe(false);
+});
+```
+
+The rule going forward: **when a fake stands in for someone else's API, its shape comes from
+that API's types or a captured response, never from what the calling code happens to want.**
+Where a fixture would be impractical, prefer the SDK's own `.d.ts` — the shape was published
+all along, and reading it would have cost a minute.
+
+A second guard now sits in the GUI suite: an assertion that the proof row never renders text
+matching `manifest carried|undefined|null|NaN`. Placeholder strings should fail loudly in
+CI, not quietly in front of a user.
+
+### 6.4 GitHub Actions
 
 Two workflows, both running the same commands a developer runs locally.
 
@@ -866,7 +921,8 @@ a two-hour recording.**
 | `localStorage`, not IndexedDB | Five small values and a capped list. Marked for upgrade. |
 | History stores text, never media | The transcript is small and useful later; the recording is the sensitive artifact and has no reason to outlive the tab. |
 | Native `<details>` for history rows and the proof | The browser already has a disclosure widget; one idiom for both. |
-| Proof collapsed to `✓ sha256:9f2c4a1e` | Eight characters identify a measurement. Nobody reads 71, and setting them large made the page heavy, not trustworthy. |
+| Proof collapsed to `✓ Genoa · ea6a6655` | Eight characters identify a measurement. Nobody reads 96, and setting them large made the page heavy, not trustworthy. |
+| Fakes derived from captured responses | A fake that agrees with an invented contract tests nothing but itself (§6.4). |
 | Inline `<details>` help, no tour library | A tour is a third-party script with full page access (§1.2) that everyone dismisses. Disclosures cost nothing to the people who skip them. |
 | Walkthrough opens iff no key was ever saved | Correct for first-timers and for anyone who cleared their data, with no dismissed-flag to store or go stale. |
 | Dev key via `.env` → `env.js` | Gitignored, absent from `dist/`, and replaced by `import.meta.env.DEV` once Vite lands. |

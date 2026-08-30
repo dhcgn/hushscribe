@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  activeIndex, clock, promptBudget, shortDigest, stamp, toSRT, toTXT, toVTT,
+  activeIndex, clock, promptBudget, stamp, toSRT, toTXT, toVTT,
 } from '../src/segments.js';
 
 const segs = [
@@ -91,10 +91,3 @@ describe('promptBudget', () => {
   it('treats an absent prompt as empty', () => expect(promptBudget(undefined).n).toBe(0));
 });
 
-describe('shortDigest', () => {
-  it('keeps the algorithm and eight hex characters', () =>
-    expect(shortDigest('sha256:9f2c4a1e7b0d38f5c6a29e14bd7038aa')).toBe('sha256:9f2c4a1e'));
-  it('handles a bare hash with no algorithm prefix', () =>
-    expect(shortDigest('9f2c4a1e7b0d38f5')).toBe('9f2c4a1e'));
-  it('is empty for a missing digest', () => expect(shortDigest(undefined)).toBe(''));
-});

@@ -1,0 +1,137 @@
+{
+  "Policies": {
+    "2018b610b08ca8f6950f3ee8c538c2c8ce3cf48378ffa5d5717b980127b438e1": {
+      "SANs": [
+        "coordinator",
+        "*"
+      ],
+      "WorkloadSecretID": "apps/v1/StatefulSet/continuum-216de2/coordinator",
+      "Role": "coordinator"
+    },
+    "3406d8bb6c047e20b8221f92180aa76fdb10c1c58e9445407e233c604f5394f5": {
+      "SANs": [
+        "continuum-etcd-client",
+        "workload-glm-5-2",
+        "*"
+      ],
+      "WorkloadSecretID": "apps/v1/Deployment/continuum-216de2/workload-glm-5-2"
+    },
+    "50342b60a293d3e20eb9c3ad6d797f583725df30c2e21d7b8021ca6e0f1d98f9": {
+      "SANs": [
+        "continuum-etcd-client",
+        "workload-whisper-qwen3-voxtral",
+        "*"
+      ],
+      "WorkloadSecretID": "apps/v1/Deployment/continuum-216de2/workload-whisper-qwen3-voxtral"
+    },
+    "6a3be55e3d20286232a8c001e07b5f38f4925fb9729b0fc3fcfa89e5d88e6c1d": {
+      "SANs": [
+        "continuum-etcd-client",
+        "workload-gpt-oss-120b",
+        "*"
+      ],
+      "WorkloadSecretID": "apps/v1/Deployment/continuum-216de2/workload-gpt-oss-120b"
+    },
+    "7dd154ad18d8a1628bd2bf6e716e0da95a35ec1e4e2af286c3bd5bb67c8ac7e1": {
+      "SANs": [
+        "continuum-etcd-client",
+        "workload-kimi-k2-6",
+        "*"
+      ],
+      "WorkloadSecretID": "apps/v1/Deployment/continuum-216de2/workload-kimi-k2-6"
+    },
+    "815b3a0f80f2521d87400f25bfba3009e7efdb40214e19fc719673250e9770e0": {
+      "SANs": [
+        "continuum-etcd-client",
+        "workload-deepseek-ocr-2",
+        "*"
+      ],
+      "WorkloadSecretID": "apps/v1/Deployment/continuum-216de2/workload-deepseek-ocr-2"
+    },
+    "9ae24ddc7f10a2e2d71699cae02c38da41725f940f45d99bad59f7b72806aee9": {
+      "SANs": [
+        "continuum-etcd-client",
+        "unstructured-api",
+        "*"
+      ],
+      "WorkloadSecretID": "apps/v1/Deployment/continuum-216de2/unstructured-api"
+    },
+    "e3e53fd2a99886ca777cd58e06d486625e5b2fcc963aa289e8a70a0d76939cb6": {
+      "SANs": [
+        "root",
+        "secret-service",
+        "*",
+        "secret-service-internal.continuum-216de2.svc.cluster.local",
+        "*.secret-service-headless.continuum-216de2.svc.cluster.local"
+      ],
+      "WorkloadSecretID": "apps/v1/StatefulSet/continuum-216de2/secret-service"
+    }
+  },
+  "ReferenceValues": {
+    "snp": [
+      {
+        "Platform": "Metal-QEMU-SNP-GPU",
+        "ProductName": "Genoa",
+        "TrustedMeasurement": "ea6a66550b8b0117ba8dd0a88b6f409e669b5ac80a5cf340647ac956353dfd3c9c740898cb9119c329da8c8641ecd47a",
+        "APEIP": "0080b004",
+        "MinimumTCB": {
+          "BootloaderVersion": 12,
+          "TEEVersion": 0,
+          "SNPVersion": 28,
+          "MicrocodeVersion": 88
+        },
+        "GuestPolicy": {
+          "ABIMinor": 58,
+          "ABIMajor": 1,
+          "SMT": false,
+          "MigrateMA": false,
+          "Debug": false,
+          "SingleSocket": true,
+          "CXLAllowed": false,
+          "MemAES256XTS": true,
+          "RAPLDis": false,
+          "CipherTextHidingDRAM": false,
+          "PageSwapDisable": true
+        },
+        "PlatformInfo": {
+          "SMTEnabled": false,
+          "ECCEnabled": true,
+          "AliasCheckComplete": true
+        },
+        "MinimumMitigationVector": 15,
+        "AllowedChipIDs": [
+          "06B3977C15C8E92E9897EBC3A0BE1E6EF6E2E70F9B57A327854F8E735A608EC1E528821C2FA770E0DD175CFD421E492C45A164457C4C669674B695368C08D36D",
+          "11495177E7796396BC5E4B8F239727AE12D8E8B0A7C2D3866D14ADC385D931DB6EC9AC27810CF8B8593E6C278C16DEA882036ABBF6820BC4EBF10E9A8F44FBF9",
+          "1886AFB73CF8656295B87CC64457DF576C43F95F00B713B7F79F88239582CF423EFD9023E211AFEC216696078D30F39D13149699F184B4B30411F91FAF3F0D86",
+          "5050718946CB028EAB9D7BB648468B4807F25229C3EE639B70F1D80251EF19CC18D3E47A991178A1A841112461D297E522F4E9C166EB20E612AB35F60E29FB1C"
+        ]
+      }
+    ],
+    "tdx": [
+      {
+        "Platform": "Metal-QEMU-TDX-GPU",
+        "MinTCBEvaluationDataNumber": 21,
+        "MrTd": "a7568bf0b3630aa33402bfec918a204c82cf92d44b09d9b1b0d8779323c6e7de5fb350d544c71c656a6d7b407e70069b",
+        "MrSeam": "ab62561a173acbd18ee50ff37750db44184c6cf5e886df74247cc575e163b04c34b9e18374757c235affa614d4127f6b",
+        "Rtmrs": [
+          "3a57ae743d61d8431a9996cfeb262ee920de9072295e53352959b96c6dee54b46bf251291efb428de418a571d11a5244",
+          "69314c5c4b80a1c2ddc916ab6050128411723b06e680795a3753b5d942c77c030d52d84b141c05953122b8118c8ca8c6",
+          "e4f7465d697c30282dfc9e24ab374ac784cc3613845975755b97bd0744a4fe028efcdacf96d7e01f487f60f796ae6f11",
+          "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "Xfam": "e702060000000000",
+        "AllowedPIIDs": [
+          "0c47f6f7587ddb0cfbb0fed9e4537ea7",
+          "6454aa54f4f7490d2b946b6a3c20742c",
+          "8aa932ac20e69d905aa0a5deb1666ab7"
+        ],
+        "MemoryIntegrity": false,
+        "SMTDisabled": false,
+        "StaticPlatform": false
+      }
+    ]
+  },
+  "SeedshareOwnerPubKeys": [
+    "3082020a0282020100af8bc6f47ded007d6539678d063ab7f00ccec57cd9de97a322c2712c2066cf417f0afdc6035f04d5d3aa393b850c5c03b0f42ed2d6d7fa0f1085f923d3b200c7228f6ab686bd2ff7f2596cf27faa91cc1a2e715998f29bc2d9eb2eea9f7104f34ffb429006cd27e3f9a3a1ed2dbcf9e2974c127779b01732ac63c80e23fc58ebada318ffaced00d4c0d7bcf6b09930afd62551b3b5dfc092583853f90da3d3f484b4ea7601051b14eadc2a28a3605a89415ee1e6b48018ed2c54ee234cf0e4c8a9ee568d771a9ad1acf03237b3451d95ebc1898bbbe62b2d9c671840ce26e92e4568cdeb57c89bd5373314b92f9679077a366114d4006d663357ede9a3b3f7f808ee38d1ce6249ec181b7a232593851fa5fb5d66e2b8ca34b80789178b7c0a1ec133987854796c72f60710709b459b04bffa56d78cd11c3fe52dd99c6bbbcfb22964c3075562ab10d9285eb6f113e7a3e5e9b3974894eddb9f478fafc05c4ea0d2ad0cc8f1ac9c3f1338f3331abe6b2b9caedc7d677b75b964996e8ee8e8275a9333b4e002d328dcc400fe65c80b2d7a061ed0aba59ea8aad8c519e40b2f7c9cb10a79683b3b5777e93fe286f9b4f36163bc1373286c3888f82173f2a2d8424a4e72570766c6123a15d2d06c914a5bbbdbbf3e9f32c777c9161f248da3cf9f7c4c8888b8702b2c78a742ba508a4938cd5900bb93269d71d9c4cc2208d2ad96e10203010001"
+  ]
+}

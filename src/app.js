@@ -2,9 +2,10 @@ import { PrivatemodeAI } from 'privatemode-ai';
 import './style.css';
 import { gate, isPlayable, isVideo } from './gate.js';
 import {
-  clock, toVTT, toSRT, toTXT, activeIndex, promptBudget, shortDigest,
+  clock, toVTT, toSRT, toTXT, activeIndex, promptBudget,
 } from './segments.js';
 import { PRICES_DATED, estimateLine, rateLabel } from './pricing.js';
+import { digestHex, measurements, policySummary, proofSummary } from './manifest.js';
 
 /* An invisible iframe of a page holding an API key is worth blocking, and
    frame-ancestors is header-only — GitHub Pages gives us no headers (§8.1). */
@@ -40,6 +41,8 @@ const makeClient = globalThis.__HC_CLIENT ?? ((opts) => new PrivatemodeAI(opts))
 
 let client = null;
 let refreshTimer = null;
+// The measurement each transcript is stamped with — its chain of custody.
+let sealedMeasurement = '';
 
 async function verify() {
   const apiKey = $('key').value.trim();
@@ -56,7 +59,12 @@ async function verify() {
       expectedWasmHash: __WASM_SHA256__,        // pinned at build time
     });
     const { manifest } = await client.verify();
-    setProof('sealed', manifest);
+    // Hash the raw bytes, not a re-serialised object: the SDK warns JSON
+    // round-tripping can alter them, and a digest nobody can reproduce is noise.
+    const manifestDigest = await digestHex(client.manifestBytes);
+    sealedMeasurement =
+      measurements(manifest)[0]?.measurement ?? (manifestDigest ? `manifest ${manifestDigest}` : '');
+    setProof('sealed', manifest, manifestDigest);
     save(K.key, apiKey);
     note($('keyNote'), 'Key saved in this browser.');
 
@@ -70,6 +78,7 @@ async function verify() {
     }, 5 * 60_000);
   } catch (e) {
     client = null;
+    sealedMeasurement = '';
     clearInterval(refreshTimer);
     setProof('idle');
     note($('keyNote'), `Verification failed: ${e.message}`, true);
@@ -78,25 +87,46 @@ async function verify() {
   }
 }
 
-function setProof(state, manifest) {
+function setProof(state, manifest, manifestDigest) {
   const chip = $('chip'), proof = $('proof');
   proof.dataset.state = chip.dataset.state = state;
-  if (state === 'sealed') {
-    const digest = manifest?.digest ?? '(manifest carried no digest)';
-    chip.textContent = 'sealed';
-    $('proofMark').textContent = '✓';
-    $('proofLine').textContent = shortDigest(digest);
-    $('digest').textContent = digest;
-    $('proofMeta').innerHTML =
-      `Attested enclave, verified ${new Date().toLocaleTimeString()}. Every transcript records ` +
-      'this measurement. <a href="https://docs.privatemode.ai/security/attestation/overview" target="_blank" rel="noreferrer">How attestation works</a> · ' +
-      '<a href="https://docs.privatemode.ai/reference/sdk/verify-from-source" target="_blank" rel="noreferrer">Verify the SDK from source</a> · ' +
-      '<a href="https://github.com/dhcgn/hushscribe" target="_blank" rel="noreferrer">This page&rsquo;s source</a>';
-  } else {
+
+  if (state !== 'sealed') {
     chip.textContent = state === 'verifying' ? 'verifying' : 'unverified';
     $('proofMark').textContent = '○';
     $('proofLine').textContent = state === 'verifying' ? 'Verifying…' : 'Not verified';
+    return;
   }
+
+  chip.textContent = 'sealed';
+  $('proofMark').textContent = '✓';
+  // Null means the manifest carried nothing worth quoting. Say "Verified" and
+  // let the detail speak, rather than printing a placeholder that looks like a
+  // measurement — which is exactly how "(manifest carried no digest)" shipped.
+  $('proofLine').textContent = proofSummary(manifest, manifestDigest) ?? 'Verified';
+
+  const rows = [];
+  for (const { product, measurement } of measurements(manifest)) {
+    rows.push(['SEV-SNP launch measurement', product ? `${measurement}  (${product})` : measurement]);
+  }
+  if (manifestDigest) rows.push(['Manifest SHA-256', manifestDigest]);
+  const { count, roles } = policySummary(manifest);
+  if (count) {
+    rows.push(['Workload policies', `${count}${roles.length ? ` · ${roles.join(', ')}` : ''}`]);
+  }
+
+  const dl = el('dl', { className: 'proof-rows' });
+  rows.forEach(([label, value]) => {
+    dl.append(el('dt', { textContent: label }), el('dd', { textContent: value }));
+  });
+  $('digest').replaceChildren(dl);
+
+  $('proofMeta').innerHTML =
+    `Attested enclave, verified ${new Date().toLocaleTimeString()}. Every transcript records ` +
+    'this measurement. <a href="https://docs.privatemode.ai/security/attestation/overview" target="_blank" rel="noreferrer">How attestation works</a> · ' +
+    '<a href="https://cdn.confidential.cloud/privatemode/v2/manifest.json" target="_blank" rel="noreferrer">The manifest itself</a> · ' +
+    '<a href="https://docs.privatemode.ai/reference/sdk/verify-from-source" target="_blank" rel="noreferrer">Verify the SDK from source</a> · ' +
+    '<a href="https://github.com/dhcgn/hushscribe" target="_blank" rel="noreferrer">This page&rsquo;s source</a>';
 }
 
 /* ═══ transcribe ═══════════════════════════════════════════════════════════ */
@@ -162,7 +192,7 @@ async function transcribe(file) {
   }
 
   const segments = res.segments?.length ? res.segments : null;
-  card.querySelector('.card-chain').textContent = client.manifest?.digest ?? '';
+  card.querySelector('.card-chain').textContent = sealedMeasurement;
 
   if (segments) {
     if (media) {

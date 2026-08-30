@@ -57,10 +57,3 @@ export function promptBudget(text) {
   return { n, level: 'ok', message: `${n} characters` };
 }
 
-// sha256:9f2c4a1e7b0d… -> sha256:9f2c4a1e. Enough to recognise a measurement;
-// the full value is one click away.
-export function shortDigest(digest) {
-  if (!digest) return '';
-  const i = digest.indexOf(':');
-  return i === -1 ? digest.slice(0, 8) : `${digest.slice(0, i)}:${digest.slice(i + 1, i + 9)}`;
-}
