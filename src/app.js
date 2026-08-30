@@ -17,7 +17,7 @@ if (self !== top) {
 /* ═══ storage ══════════════════════════════════════════════════════════════ */
 const K = {
   key: 'hc.apiKey', prompts: 'hc.prompts', lang: 'hc.lang',
-  model: 'hc.model', hist: 'hc.transcripts',
+  model: 'hc.model', hist: 'hc.transcripts', view: 'hc.view',
 };
 const HISTORY_MAX = 20;
 
@@ -365,6 +365,19 @@ async function take(files) {
   return queue.reduce((p, f) => p.then(() => transcribe(f)), Promise.resolve());
 }
 
+/* Comfortable (default) or compact. public/view-init.js applies the saved value
+   before first paint; this only keeps the button and the attribute in step. */
+function setView(view) {
+  const compact = view === 'compact';
+  document.documentElement.dataset.view = compact ? 'compact' : 'comfortable';
+  const b = $('viewToggle');
+  b.setAttribute('aria-pressed', String(compact));
+  b.textContent = compact ? 'Full' : 'Compact';
+  b.title = compact
+    ? 'Bring back the explanations and the roomier layout'
+    : 'Hide the explanatory text and tighten the layout';
+}
+
 function renderRate() {
   $('rate').textContent = `${rateLabel($('model').value)} of audio · ${PRICES_DATED} prices`;
 }
@@ -498,6 +511,12 @@ $('delPrompt').addEventListener('click', () => {
   save(K.prompts, list); renderPrompts();
 });
 
+$('viewToggle').addEventListener('click', () => {
+  const next = document.documentElement.dataset.view === 'compact' ? 'comfortable' : 'compact';
+  save(K.view, next);
+  setView(next);
+});
+
 $('inclKey').addEventListener('change', (e) => { $('keyWarn').hidden = !e.target.checked; });
 $('exportAll').addEventListener('click', exportAll);
 $('clearHist').addEventListener('click', () => { forget(K.hist); renderData(); renderHistory(); });
@@ -565,5 +584,6 @@ if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     .catch(() => { /* installability is a nicety; never break the page over it */ });
 }
 
+setView(load(K.view, 'comfortable'));
 setProof('idle');
 renderPrompts(); renderData(); renderHistory(); renderCount(); renderRate();

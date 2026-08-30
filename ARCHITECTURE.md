@@ -474,7 +474,29 @@ large, is the sensitive artifact, and has no reason to outlive the tab.
 
 ---
 
-### 5.4 Help for non-technical users
+### 5.4 Compact view
+
+One header toggle switches between **comfortable** (default) and **compact**, remembered in
+`hc.view`. Compact makes the page ~36% shorter.
+
+It is driven entirely by CSS from a `data-view` attribute on `<html>`, so the JavaScript only
+flips an attribute and a label. What gets hidden is decided by one marker class, `prose`, on
+the teaching material: the hero copy, the walkthrough, and the four help disclosures.
+
+**What compact deliberately does not hide:** the wrong-language warning, the per-minute rate,
+the attestation row, section labels, and every status message. `prose` marks explanation, not
+anything a user needs in order to judge what the tool is about to do. **A denser layout must
+not become a less honest one** — the temptation to hide a warning because it is long is
+exactly the thing §1.3 exists to resist. An e2e test asserts each of those stays visible.
+
+**Why `public/view-init.js` exists.** The CSP is `script-src 'self'` with no `'unsafe-inline'`
+(§8.1), so the usual anti-flash trick — a tiny inline script in `<head>` — is unavailable.
+Instead a real file is loaded as a classic, render-blocking script in `<head>`, where it runs
+before the body is parsed. Without it, a compact user would watch the roomy layout paint and
+then collapse on every single load. It is the one place in this project where a
+render-blocking request is the right call, and it is thirteen lines.
+
+### 5.5 Help for non-technical users
 
 The intended user is a therapist, journalist, clinician, or lawyer with a recording they
 currently cannot transcribe anywhere — not a developer. The page originally failed them at
@@ -684,6 +706,7 @@ All `localStorage`, prefix `hc.`, one key per concern.
 | `hc.prompts` | named prompts, array |
 | `hc.lang` | last used language code |
 | `hc.model` | last used model |
+| `hc.view` | `comfortable` (default) or `compact` (§5.4) |
 | `hc.transcripts` | last **20** results — `{ name, model, lang, at, text, segments }` |
 
 ```js

@@ -403,6 +403,70 @@ test.describe('cost estimate', () => {
   });
 });
 
+test.describe('view toggle', () => {
+  const proseVisible = (page) => page.locator('.hero h1').isVisible();
+
+  test('starts comfortable and switches to compact', async ({ page }) => {
+    expect(await proseVisible(page)).toBe(true);
+    await expect(page.locator('#guide')).toBeVisible();
+
+    await page.locator('#viewToggle').click();
+
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'compact');
+    await expect(page.locator('#viewToggle')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#viewToggle')).toHaveText('Full');
+    expect(await proseVisible(page)).toBe(false);
+    await expect(page.locator('#guide')).toBeHidden();
+  });
+
+  test('keeps the controls, the warnings, and the prices', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+
+    // Density must not cost honesty: a denser layout is not a quieter one.
+    await expect(page.getByLabel('Spoken language')).toBeVisible();
+    await expect(page.locator('.field .note.warn')).toBeVisible();  // Whisper translates
+    await expect(page.locator('#rate')).toBeVisible();              // cost per minute
+    await expect(page.locator('#proof')).toBeVisible();             // attestation
+    await expect(page.locator('#drop')).toBeVisible();
+    await expect(page.locator('#dataNote')).toBeVisible();
+  });
+
+  test('survives a reload with no flash of the roomy layout', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'compact');
+
+    await page.reload({ waitUntil: 'commit' });
+    // Sampled the instant the document exists: view-init.js runs synchronously in
+    // <head>, so the attribute must already be set before any body paint. This is
+    // the entire reason that file exists rather than doing it in app.js.
+    await page.waitForFunction(() => document.documentElement.dataset.view === 'compact');
+    expect(await proseVisible(page)).toBe(false);
+    await expect(page.locator('#viewToggle')).toHaveText('Full');
+  });
+
+  test('toggles back to comfortable and remembers that too', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'comfortable');
+
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'comfortable');
+    expect(await proseVisible(page)).toBe(true);
+  });
+
+  test('still works when storage is unavailable', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', {
+        get() { throw new DOMException('blocked', 'SecurityError'); },
+      });
+    });
+    await page.goto('.');
+    await expect(page.locator('#viewToggle')).toBeVisible();
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'compact');
+  });
+});
+
 test.describe('installable app', () => {
   test('serves a valid manifest with the icons it names', async ({ page, request }) => {
     const link = await page.locator('link[rel="manifest"]').getAttribute('href');

@@ -282,3 +282,27 @@ button.link {
   margin: 12px 0 0; font: 400 11px/1.5 var(--mono); color: var(--slate);
 }
 .card-chain[title] { cursor: help; }
+
+/* ── compact view ───────────────────────────────────────────────────── */
+/* `prose` marks teaching material a returning user does not need. Status
+   messages, warnings, section labels, and prices are deliberately not prose —
+   a denser layout must not become a less honest one. */
+.view-toggle {
+  font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  padding: 7px 11px; border: 1px solid var(--rule); border-radius: 2px;
+  background: var(--raised); color: var(--slate); cursor: pointer;
+}
+.view-toggle:hover { border-color: var(--slate); color: var(--ink); }
+.view-toggle[aria-pressed="true"] {
+  color: var(--seal); border-color: var(--seal); background: var(--seal-lo);
+}
+
+:root[data-view="compact"] .prose { display: none; }
+:root[data-view="compact"] .hero { padding: 26px 0 4px; }
+:root[data-view="compact"] .panel { padding: 20px 0; }
+:root[data-view="compact"] .panel > .tag { margin-bottom: 12px; }
+:root[data-view="compact"] .drop { padding: 26px 24px; }
+:root[data-view="compact"] .drop h2 { font-size: 16px; margin-bottom: 4px; }
+:root[data-view="compact"] .foot { margin-top: 26px; padding-top: 18px; }
+:root[data-view="compact"] .card { padding: 14px; }
+:root[data-view="compact"] .segs { max-height: 220px; }
