@@ -7,6 +7,9 @@
 <meta name="theme-color" content="#1f3bc4">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
+<!-- Sets data-view before the body renders, so a compact user never sees the
+     roomy layout flash first. A real file, not inline: CSP forbids inline scripts. -->
+<script src="view-init.js"></script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231f3bc4'/%3E%3Cpath d='M4 5h8M4 8h8M4 11h4' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E">
 </head>
 <body>
@@ -15,18 +18,20 @@
 
   <header class="bar">
     <div class="brand">hushscribe <span>/ hc</span></div>
+    <button class="view-toggle" id="viewToggle" type="button" aria-pressed="false"
+            title="Hide the explanatory text and tighten the layout">Compact</button>
     <div class="seal-chip" id="chip" data-state="idle">unverified</div>
   </header>
 
   <section class="hero">
-    <div class="tag">Confidential speech-to-text</div>
-    <h1>Transcribe confidential audio.</h1>
-    <p>
+    <div class="tag prose">Confidential speech-to-text</div>
+    <h1 class="prose">Transcribe confidential audio.</h1>
+    <p class="prose">
       Your recording is encrypted before it leaves this tab and stays encrypted the whole
       way &mdash; including while the AI is transcribing it. Nobody along the chain can read
       it: not the AI provider, not the cloud it runs on. Not the audio, not the transcript.
     </p>
-    <p class="lede">
+    <p class="lede prose">
       Ordinary encryption protects your data in transit and at rest. Confidential computing
       keeps it unreadable <em>while it is being used</em>. That is the whole reason this
       page can exist.
@@ -48,7 +53,7 @@
     </details>
   </section>
 
-  <details class="panel guide" id="guide">
+  <details class="panel guide prose" id="guide">
     <summary><span class="tag">New here? Three steps</span></summary>
     <ol class="steps">
       <li>
@@ -89,12 +94,12 @@
     </p>
   </details>
 
-  <section class="panel">
+  <section class="panel" id="access">
     <div class="tag">Access</div>
     <div class="field">
       <label for="key">Privatemode API key</label>
       <input type="password" id="key" placeholder="pm-…" autocomplete="off">
-      <details class="help">
+      <details class="help prose">
         <summary>Where do I get this?</summary>
         <p>
           Sign up at <a href="https://portal.privatemode.ai" target="_blank" rel="noreferrer">portal.privatemode.ai</a>
@@ -122,7 +127,7 @@
           <option value="voxtral-mini-3b">Voxtral Mini 3B &mdash; faster</option>
         </select>
         <p class="price" id="rate"></p>
-        <details class="help">
+        <details class="help prose">
           <summary>Which should I pick?</summary>
           <p>
             Whisper, unless you are in a hurry. It copes better with accents, background
@@ -151,14 +156,15 @@
           <option value="it">it · Italian</option>
           <option value="nl">nl · Dutch</option>
         </select>
-        <p class="note warn">
+        <p class="note warn prose">
           Pick the language actually spoken. Given the wrong one, Whisper does not fail
           &mdash; it <b>translates</b> into the language you chose, and the result reads
           like a plausible transcript that is not what was said.
         </p>
+        <p class="note warn dense">Wrong language &rarr; Whisper translates instead of transcribing.</p>
       </div>
     </div>
-    <details class="help">
+    <details class="help prose">
       <summary>Why does the language matter?</summary>
       <p>
         Two reasons. Naming it gets you a better, faster transcript than letting the model
@@ -178,7 +184,7 @@
       <label for="prompt">Names and spellings <span class="opt">optional</span></label>
       <textarea id="prompt" placeholder="Yusuf Okonkwo, Dr. Bergström, the Halvorsen case, MRI, T-cell count"></textarea>
       <p class="count" id="count">0 characters</p>
-      <details class="help">
+      <details class="help prose">
         <summary>What goes in here?</summary>
         <p>
           Anything the model is likely to get wrong: people&rsquo;s names, company or product
@@ -201,7 +207,7 @@
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop media files or browse">
       <h2>Drop media here</h2>
       <p class="m">flac · mp3 · mp4 · mpeg · mpga · m4a · ogg · wav · webm</p>
-      <p>50 MB and 1 hour per file. Nothing is uploaded until it is encrypted.</p>
+      <p class="prose">50 MB and 1 hour per file. Nothing is uploaded until it is encrypted.</p>
     </div>
     <input type="file" id="picker" multiple hidden
            accept=".flac,.mp3,.mp4,.mpeg,.mpga,.m4a,.ogg,.wav,.webm">
@@ -210,7 +216,7 @@
 
   <section class="panel">
     <div class="tag">History &mdash; last 20 transcripts</div>
-    <p class="note">
+    <p class="note prose">
       Text and timestamps are kept in this browser. <strong>The media files never are</strong> —
       they only ever existed in the tab you dropped them into, so history has no player.
     </p>

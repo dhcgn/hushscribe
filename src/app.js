@@ -17,7 +17,7 @@ if (self !== top) {
 /* ═══ storage ══════════════════════════════════════════════════════════════ */
 const K = {
   key: 'hc.apiKey', prompts: 'hc.prompts', lang: 'hc.lang',
-  model: 'hc.model', hist: 'hc.transcripts',
+  model: 'hc.model', hist: 'hc.transcripts', view: 'hc.view',
 };
 const HISTORY_MAX = 20;
 
@@ -66,6 +66,7 @@ async function verify() {
       measurements(manifest)[0]?.measurement ?? (manifestDigest ? `manifest ${manifestDigest}` : '');
     setProof('sealed', manifest, manifestDigest);
     save(K.key, apiKey);
+    setKeyState();
     note($('keyNote'), 'Key saved in this browser.');
 
     // The encryption secret expires; keep it fresh for long sessions.
@@ -81,6 +82,8 @@ async function verify() {
     sealedMeasurement = '';
     clearInterval(refreshTimer);
     setProof('idle');
+    // Reveal the key field again: whatever is stored did not work.
+    document.documentElement.dataset.key = 'none';
     note($('keyNote'), `Verification failed: ${e.message}`, true);
   } finally {
     $('verify').disabled = false;
@@ -365,6 +368,25 @@ async function take(files) {
   return queue.reduce((p, f) => p.then(() => transcribe(f)), Promise.resolve());
 }
 
+/* Comfortable (default) or compact. public/view-init.js applies the saved value
+   before first paint; this only keeps the button and the attribute in step. */
+/* Compact hides the key field once a key is stored — but never while it is
+   unusable, or a bad key would be unfixable without finding the view toggle. */
+function setKeyState() {
+  document.documentElement.dataset.key = load(K.key, '') ? 'saved' : 'none';
+}
+
+function setView(view) {
+  const compact = view === 'compact';
+  document.documentElement.dataset.view = compact ? 'compact' : 'comfortable';
+  const b = $('viewToggle');
+  b.setAttribute('aria-pressed', String(compact));
+  b.textContent = compact ? 'Full' : 'Compact';
+  b.title = compact
+    ? 'Bring back the explanations and the roomier layout'
+    : 'Hide the explanatory text and tighten the layout';
+}
+
 function renderRate() {
   $('rate').textContent = `${rateLabel($('model').value)} of audio · ${PRICES_DATED} prices`;
 }
@@ -498,16 +520,23 @@ $('delPrompt').addEventListener('click', () => {
   save(K.prompts, list); renderPrompts();
 });
 
+$('viewToggle').addEventListener('click', () => {
+  const next = document.documentElement.dataset.view === 'compact' ? 'comfortable' : 'compact';
+  save(K.view, next);
+  setView(next);
+});
+
 $('inclKey').addEventListener('change', (e) => { $('keyWarn').hidden = !e.target.checked; });
 $('exportAll').addEventListener('click', exportAll);
 $('clearHist').addEventListener('click', () => { forget(K.hist); renderData(); renderHistory(); });
 $('clearKey').addEventListener('click', () => {
-  forget(K.key); $('key').value = '';
+  forget(K.key); $('key').value = ''; setKeyState();
   note($('keyNote'), 'Key removed from this browser.'); renderData();
 });
 $('clearAll').addEventListener('click', () => {
   if (!confirm('Delete the API key, saved prompts, and all transcripts from this browser?')) return;
   Object.values(K).forEach(forget);
+  setKeyState();
   objectUrls.splice(0).forEach(URL.revokeObjectURL);
   $('key').value = ''; $('prompt').value = ''; $('lang').value = '';
   $('results').replaceChildren();
@@ -565,5 +594,14 @@ if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     .catch(() => { /* installability is a nicety; never break the page over it */ });
 }
 
+setView(load(K.view, 'comfortable'));
+setKeyState();
 setProof('idle');
 renderPrompts(); renderData(); renderHistory(); renderCount(); renderRate();
+
+/* Attest on load when there is a key to attest with, so the page is ready to
+   take a file instead of demanding a click that has only one sensible answer.
+   Attestation is a handshake, not an inference request, so it costs nothing but
+   a round trip — though it does mean opening the page contacts the provider
+   (ARCHITECTURE.md §1.3). A failure just surfaces the error and shows the field. */
+if ($('key').value.trim()) verify();

@@ -359,7 +359,7 @@ test.describe('convenience', () => {
   });
 
   test('warns that a wrong language makes Whisper translate', async ({ page }) => {
-    await expect(page.locator('.field .note.warn')).toContainText('translates');
+    await expect(page.locator('.note.warn.prose')).toContainText('translates');
     const help = page.locator('.help', { hasText: 'Why does the language matter?' });
     await help.locator('summary').click();
     await expect(help).toContainText('worse than naming none');
@@ -400,6 +400,137 @@ test.describe('cost estimate', () => {
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
     await expect(card.locator('.price')).toHaveText('');
+  });
+});
+
+test.describe('view toggle', () => {
+  const proseVisible = (page) => page.locator('.hero h1').isVisible();
+
+  test('starts comfortable and switches to compact', async ({ page }) => {
+    expect(await proseVisible(page)).toBe(true);
+    await expect(page.locator('#guide')).toBeVisible();
+
+    await page.locator('#viewToggle').click();
+
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'compact');
+    await expect(page.locator('#viewToggle')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#viewToggle')).toHaveText('Full');
+    expect(await proseVisible(page)).toBe(false);
+    await expect(page.locator('#guide')).toBeHidden();
+  });
+
+  test('keeps the controls, the warnings, and the prices', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+
+    // Density must not cost honesty: a denser layout is not a quieter one. The
+    // language warning gets shorter, it does not go away.
+    await expect(page.getByLabel('Spoken language')).toBeVisible();
+    await expect(page.locator('.note.warn.prose')).toBeHidden();
+    await expect(page.locator('.note.warn.dense')).toBeVisible();
+    await expect(page.locator('.note.warn.dense')).toContainText('translates');
+    await expect(page.locator('#rate')).toBeVisible();              // cost per minute
+    await expect(page.locator('#proof')).toBeVisible();             // attestation
+    await expect(page.locator('#drop')).toBeVisible();
+  });
+
+  test('hides the key field once a key is stored, and only then', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#access')).toBeVisible();   // nothing saved yet
+
+    await unlock(page);
+    await expect(page.locator('html')).toHaveAttribute('data-key', 'saved');
+    await expect(page.locator('#access')).toBeHidden();
+
+    // Still reachable by leaving compact — the toggle is the way back.
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#access')).toBeVisible();
+  });
+
+  // The header is sticky, so the chip is the only status still on screen once the
+  // results scroll past. It stays in both views.
+  test('keeps the status chip visible in both views, and while scrolled', async ({ page }) => {
+    await unlock(page);
+    await expect(page.locator('#chip')).toBeVisible();
+
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#chip')).toBeVisible();
+    await expect(page.locator('#chip')).toHaveText('sealed');
+    await expect(page.locator('#proofLine')).toBeVisible();
+
+    await page.locator('#picker').setInputFiles(wav);
+    await expect(page.locator('.card .seg')).toHaveCount(LINES.length);
+    await page.locator('.foot').scrollIntoViewIfNeeded();
+    await expect(page.locator('#chip')).toBeInViewport();
+  });
+
+  test('shows the unverified state in the header before any key', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#chip')).toBeVisible();
+    await expect(page.locator('#chip')).toHaveText('unverified');
+  });
+
+  test('survives a reload with no flash of the roomy layout', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'compact');
+
+    await page.reload({ waitUntil: 'commit' });
+    // Sampled the instant the document exists: view-init.js runs synchronously in
+    // <head>, so the attribute must already be set before any body paint. This is
+    // the entire reason that file exists rather than doing it in app.js.
+    await page.waitForFunction(() => document.documentElement.dataset.view === 'compact');
+    expect(await proseVisible(page)).toBe(false);
+    await expect(page.locator('#viewToggle')).toHaveText('Full');
+  });
+
+  test('toggles back to comfortable and remembers that too', async ({ page }) => {
+    await page.locator('#viewToggle').click();
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'comfortable');
+
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'comfortable');
+    expect(await proseVisible(page)).toBe(true);
+  });
+
+  test('still works when storage is unavailable', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', {
+        get() { throw new DOMException('blocked', 'SecurityError'); },
+      });
+    });
+    await page.goto('.');
+    await expect(page.locator('#viewToggle')).toBeVisible();
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'compact');
+  });
+});
+
+test.describe('verify on load', () => {
+  test('attests automatically when a key is already saved', async ({ page }) => {
+    await unlock(page);                      // saves the key
+    await page.reload();
+
+    // No click: the page should come back sealed and ready for a file.
+    await expect(page.locator('#chip')).toHaveText('sealed');
+    await expect(page.locator('#proofLine')).toHaveText(PROOF_LINE);
+  });
+
+  test('does nothing on a first visit, with no key to attest with', async ({ page }) => {
+    await expect(page.locator('#chip')).toHaveText('unverified');
+    await expect(page.locator('#keyNote')).toHaveText('');
+  });
+
+  test('surfaces a stored key that no longer works, and shows the field again', async ({ page }) => {
+    await unlock(page);
+    await installFakeClient(page, { fail: 'verify' });
+    await page.reload();
+
+    await expect(page.locator('#keyNote')).toContainText('attestation rejected');
+    await expect(page.locator('#chip')).toHaveText('unverified');
+    // A bad key must stay fixable, even in compact where the field is hidden.
+    await expect(page.locator('html')).toHaveAttribute('data-key', 'none');
+    await page.locator('#viewToggle').click();
+    await expect(page.locator('#access')).toBeVisible();
   });
 });
 

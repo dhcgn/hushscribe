@@ -93,6 +93,11 @@ the UI does not need one.
 Where a shortcut has a known ceiling, it carries a `ponytail:` comment naming the ceiling and
 the upgrade path. Keep that habit.
 
+The compact view hides `.prose` only — teaching material. Warnings, prices, status, and the
+attestation row stay visible in both views: a denser layout must not become a less honest
+one. `public/view-init.js` applies the saved view before first paint because the CSP forbids
+the usual inline anti-flash script.
+
 Deliberate asymmetry worth preserving: **transcripts persist, media never does.** History has
 no player and no Redo because the file was never stored — Redo lives on the result card,
 where the `File` is in scope. Don't "fix" that by caching media.

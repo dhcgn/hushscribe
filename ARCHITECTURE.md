@@ -227,8 +227,16 @@ Then a refresh loop, because the encryption secret expires:
 setInterval(() => client.refreshSecret().catch(showError), 5 * 60_000);
 ```
 
-`verify()` runs once per session on key entry, behind an explicit user action, so opening a
-bookmark link does not silently spend a request.
+`verify()` runs on key entry and **automatically on load whenever a key is already stored**,
+so the page is ready to take a file instead of demanding a click that has only one sensible
+answer. Attestation is a handshake, not an inference request, so it costs nothing but a round
+trip.
+
+It is not free of consequence, though: **opening the page now contacts Privatemode**, where
+before it was silent until you acted. No audio and no transcript are involved — it is the
+same class of metadata already disclosed in §1.3 (that you made a request, when, from which
+IP) — but the trigger moved from your click to page load, and that is worth stating rather
+than letting it pass as a UX tweak.
 
 **Skipped:** `exportSecret()` / `importSecret()` secret caching across reloads. It trades a
 ~1 s handshake for a long-lived secret sitting in `localStorage` — a bad deal for a
@@ -474,7 +482,44 @@ large, is the sensitive artifact, and has no reason to outlive the tab.
 
 ---
 
-### 5.4 Help for non-technical users
+### 5.4 Compact view
+
+One header toggle switches between **comfortable** (default) and **compact**, remembered in
+`hc.view`. Compact makes the page **~58% shorter** (2951px → 1236px, measured).
+
+It is driven entirely by CSS from a `data-view` attribute on `<html>`, so the JavaScript only
+flips an attribute and a label. What gets hidden is decided by one marker class, `prose`, on
+the teaching material: the hero copy, the walkthrough, and the four help disclosures.
+
+Compact additionally drops descriptions and status chatter (`.note:not(.warn)`) and the
+dropzone blurb. The **API key field hides once a key is stored** (`data-key="saved"`): it is
+a question, and it stops needing to be asked once answered.
+
+**The header status chip stays in both views.** An earlier pass hid it in compact as a
+duplicate of the proof row, which was wrong: the header is `position: sticky`, so once the
+results scroll past, the chip is the *only* place `unverified` / `sealed` is still on screen.
+The proof row is the detail; the chip is the persistent indicator. Compact only shrinks it. A
+test scrolls to the footer and asserts the chip is still in the viewport.
+
+**What compact never hides:** the wrong-language warning, the per-minute rate, the
+attestation row, and any error. `prose` marks explanation, not anything a user needs in order
+to judge what the tool is about to do. **A denser layout must not become a less honest one.**
+The warning gets *shorter*, not absent — a `.dense` one-liner replaces the paragraph — because
+the temptation to drop a warning for being long is exactly what §1.3 exists to resist. E2e
+tests assert each of these.
+
+One safety interlock: a failed verification sets `data-key="none"`, so a stored key that has
+stopped working brings the field back even in compact. Otherwise a bad key would be
+unfixable without first discovering the view toggle.
+
+**Why `public/view-init.js` exists.** The CSP is `script-src 'self'` with no `'unsafe-inline'`
+(§8.1), so the usual anti-flash trick — a tiny inline script in `<head>` — is unavailable.
+Instead a real file is loaded as a classic, render-blocking script in `<head>`, where it runs
+before the body is parsed. Without it, a compact user would watch the roomy layout paint and
+then collapse on every single load. It is the one place in this project where a
+render-blocking request is the right call, and it is thirteen lines.
+
+### 5.5 Help for non-technical users
 
 The intended user is a therapist, journalist, clinician, or lawyer with a recording they
 currently cannot transcribe anywhere — not a developer. The page originally failed them at
@@ -684,6 +729,7 @@ All `localStorage`, prefix `hc.`, one key per concern.
 | `hc.prompts` | named prompts, array |
 | `hc.lang` | last used language code |
 | `hc.model` | last used model |
+| `hc.view` | `comfortable` (default) or `compact` (§5.4) |
 | `hc.transcripts` | last **20** results — `{ name, model, lang, at, text, segments }` |
 
 ```js
