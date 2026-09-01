@@ -101,6 +101,7 @@ Each of these cost real debugging time here. Don't rediscover them.
 | Test locators | Never match on text that changes (`name: 'Copy'` stops matching at `'Copied'`). Use `data-act="…"`. |
 | Prompt | Whisper reads ≤224 tokens and silently drops the rest. |
 | GitHub Pages | Serves the **`gh-pages` branch**, set manually once — `GITHUB_TOKEN` gets `Resource not accessible by integration` and cannot set it for you. Root is the release, `pr/<n>/` are previews, so a release deploy must delete the root *except* `pr/`. |
+| `gh` with no checkout | A cleanup job that skips `actions/checkout` has no git repo, so `gh` cannot infer the repository: `fatal: not a git repository`. Set `GH_REPO`. |
 | `${{ }}` over two lines | A wrapped expression containing a URL parses as a YAML mapping (`https:`) and the workflow will not load. One line, or build the string in the shell. |
 | Git Bash on Windows | MSYS rewrites `!/path` args into `C:/Program Files/Git/...`. Use `MSYS_NO_PATHCONV=1` when verifying sparse-checkout patterns. |
 | `python .replace()` edits | Fail **silently** on no-match. Assert the match, or use the Edit tool. |

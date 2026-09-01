@@ -152,6 +152,9 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
+          # Closing a PR skips the checkout, leaving no repository for gh to
+          # infer the owner and name from. Naming it is not optional here.
+          GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.number }}
           ACTION: ${{ github.event.action }}
           # Built here rather than in a `${{ }}` expression: a URL's `https:`
