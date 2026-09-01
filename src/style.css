@@ -240,6 +240,7 @@ button.link {
 }
 .foot p { margin: 12px 0 0; font-size: 13px; line-height: 1.55; color: var(--slate); max-width: 62ch; }
 .foot p a { color: var(--seal); }
+.foot .build { font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .spin { display: inline-block; width: 11px; height: 11px; border-radius: 50%;
   border: 2px solid var(--rule); border-top-color: var(--seal); animation: spin .7s linear infinite; }

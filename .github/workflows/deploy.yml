@@ -1,31 +1,63 @@
 name: Deploy to GitHub Pages
 
+# Releases only. A commit on main is not a version, so it does not get published
+# — tag it and write the release notes, and that tag is what the site reports.
+# Pull requests get a throwaway copy under /pr/<n>/ so a change can be clicked
+# through before it is tagged.
 on:
   push:
-    branches: [main]
+    tags: ['v*']
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write        # pushes the built site to the gh-pages branch
+  pull-requests: write   # leaves the preview link on the PR
 
-# Never let two deploys race; always finish the newest one.
+# Every run here pushes to the same branch, so they must not overlap. Never
+# cancelled: a cancelled cleanup would strand a preview directory forever.
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: gh-pages
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # A fork PR gets a read-only GITHUB_TOKEN, so the push could only ever fail.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     steps:
+      # One workflow, three cases: a tag publishes to the site root, a pull
+      # request to pr/<n>/, and closing that pull request deletes it again.
+      # `workflow_dispatch` is for re-publishing a tag — run it from one, or the
+      # footer link points at a release that does not exist.
+      - id: target
+        env:
+          PR: ${{ github.event.number }}
+          REF: ${{ github.ref_name }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          if [ -n "$PR" ]; then
+            {
+              echo "dir=pr/$PR"
+              echo "base=/$REPO/pr/$PR/"
+              echo "version=PR #$PR"
+              echo "link=${{ github.event.pull_request.html_url }}"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "dir="
+              echo "base=/$REPO/"
+              echo "version=$REF"
+              echo "link=${{ github.server_url }}/${{ github.repository }}/releases/tag/$REF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       # test-data/ is ~83 MB of real speech used only by the opt-in smoke suite.
       # Non-cone sparse checkout keeps it out of the working tree, and checkout
       # pairs that with a blobless partial clone, so the bytes are never fetched.
       - uses: actions/checkout@v4
+        if: github.event.action != 'closed'
         with:
           sparse-checkout: |
             /*
@@ -33,25 +65,33 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@v4
+        if: github.event.action != 'closed'
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
+        if: github.event.action != 'closed'
 
-      # Gate the deploy on the tests, so main can never publish a broken page.
+      # Gate the release on the tests, so a tag can never publish a broken page.
+      # Previews skip it: ci.yml already runs the same command on the same commit.
       - run: npm run coverage
+        if: github.event_name != 'pull_request'
 
       - name: Build
-        # A project site lives at /<repo>/. Set BASE_PATH to / if you move this
-        # to a custom domain.
+        if: github.event.action != 'closed'
         run: npm run build
         env:
-          BASE_PATH: /hushscribe/
+          # A project site lives at /<repo>/, a preview one level deeper. Set
+          # BASE_PATH to / if you move this to a custom domain.
+          BASE_PATH: ${{ steps.target.outputs.base }}
+          APP_VERSION: ${{ steps.target.outputs.version }}
+          APP_VERSION_URL: ${{ steps.target.outputs.link }}
 
       # Publishes dist/coverage.json for the shields.io endpoint badge. Must run
       # after the build, which creates dist/.
       - name: Publish the coverage badge endpoint
+        if: github.event_name != 'pull_request'
         run: npm run coverage:badge
 
       # A key baked into a static bundle deployed to a public Pages site is a
@@ -64,6 +104,7 @@ jobs:
       # The one permitted hit is openai's randomUUID polyfill template: a
       # published constant, not a secret.
       - name: Assert no API key reached the bundle
+        if: github.event.action != 'closed'
         run: |
           hits=$(grep -rIoE 'pm-[A-Za-z0-9_-]{12,}|[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}' dist/ | grep -v '10000000-1000-4000-8000-100000000000' || true)
           if [ -n "$hits" ]; then
@@ -73,15 +114,50 @@ jobs:
           fi
           echo "No key-shaped strings in dist/."
 
-      # Pages must already be enabled with Source = GitHub Actions, or this step
-      # fails with "Get Pages site failed" on a fresh repo. `enablement: true`
-      # does NOT fix that: GITHUB_TOKEN cannot create a Pages site and the call
-      # returns "Resource not accessible by integration". It is a one-time
-      # repository-owner action, documented in the README:
-      #   gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # Pages serves the gh-pages branch, so publishing is a commit: production
+      # at the root, previews under pr/. Deleting a preview is the same step
+      # with no dist/ to copy in.
+      - name: Publish to gh-pages
+        env:
+          DIR: ${{ steps.target.outputs.dir }}
+          MSG: ${{ steps.target.outputs.version }}${{ github.event.action == 'closed' && ' (removed)' || '' }}
+        run: |
+          remote="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
+          git clone --depth 1 --branch gh-pages "$remote" pages 2>/dev/null \
+            || { git init -q -b gh-pages pages && git -C pages remote add origin "$remote"; }
+
+          if [ -n "$DIR" ]; then
+            rm -rf "pages/$DIR"
+          else
+            # A release replaces the site but must leave open previews standing.
+            find pages -mindepth 1 -maxdepth 1 -not -name .git -not -name pr -exec rm -rf {} +
+          fi
+          if [ -d dist ]; then
+            mkdir -p "pages/$DIR"
+            cp -a dist/. "pages/$DIR"
+          fi
+          # Without this, Pages runs Jekyll and drops any file starting with _.
+          touch pages/.nojekyll
+
+          cd pages
+          git add -A
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -q -m "$MSG" || { echo 'Nothing changed.'; exit 0; }
+          git push -q origin gh-pages
+
+      # One comment per PR, rewritten in place — `--edit-last` fails the first
+      # time round, and the fallback posts it.
+      - name: Point the pull request at its preview
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.number }}
+          ACTION: ${{ github.event.action }}
+          # Built here rather than in a `${{ }}` expression: a URL's `https:`
+          # inside one reads as a YAML mapping and fails to parse.
+          URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr/${{ github.event.number }}/
+        run: |
+          body="Preview of this PR: $URL"
+          if [ "$ACTION" = closed ]; then body='Preview removed.'; fi
+          gh pr comment "$PR" --edit-last --body "$body" || gh pr comment "$PR" --body "$body"

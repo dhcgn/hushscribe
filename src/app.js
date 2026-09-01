@@ -639,6 +639,10 @@ if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     .catch(() => { /* installability is a nicety; never break the page over it */ });
 }
 
+/* The version stamp in the footer, so the page can say which build you are
+   looking at and link to its release notes (or, for a preview, its PR). */
+Object.assign($('version'), { textContent: __APP_VERSION__, href: __APP_VERSION_URL__ });
+
 setView(load(K.view, 'comfortable'));
 setKeyState();
 setProof('idle');

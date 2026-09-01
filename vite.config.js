@@ -91,7 +91,17 @@ export default defineConfig(({ command }) => {
     // suite runs against `vite preview` with the same base.
     base: process.env.BASE_PATH ?? '/hushscribe/',
     plugins: [privatemodeWasm(), cspMeta()],
-    define: { __DEV_API_KEY__: JSON.stringify(devKey) },
+    /* Which build this is. Only a tag push sets APP_VERSION, so anything else —
+       a local build, a PR preview — says so plainly instead of claiming a
+       version it does not have. APP_VERSION_URL is where the footer link goes:
+       the release notes for a tag, the pull request for a preview. */
+    define: {
+      __DEV_API_KEY__: JSON.stringify(devKey),
+      __APP_VERSION__: JSON.stringify(process.env.APP_VERSION ?? 'dev'),
+      __APP_VERSION_URL__: JSON.stringify(
+        process.env.APP_VERSION_URL ?? 'https://github.com/dhcgn/hushscribe/releases',
+      ),
+    },
     build: { target: 'es2022', sourcemap: true },
     server: { port: 5173 },
     preview: { port: 4173 },

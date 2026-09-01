@@ -42,6 +42,26 @@ npm run test:smoke # OPT-IN. Real enclave, real money. Needs .env
 npm run build      # -> dist/
 ```
 
+## Releasing
+
+**Only tags publish.** A commit on `main` runs CI and stops there; the site keeps serving
+the last tag, and the footer says which one and links to its notes.
+
+```bash
+npm test                                   # green before you tag anything
+gh release create v0.2.0 --generate-notes  # tag + notes — this is the deploy trigger
+gh run watch                               # deploy.yml, ~2 min
+```
+
+Create the tag *through* `gh release create`. A bare `git push --tags` deploys just the
+same, but the footer's link then points at a release page that does not exist.
+`--generate-notes` writes the notes from the PRs merged since the last tag; use
+`--notes-file`/`--draft` to write them yourself, and `gh workflow run deploy.yml --ref
+v0.2.0` to re-publish a tag unchanged.
+
+Every PR publishes a throwaway copy to `…/hushscribe/pr/<n>/`, commented on the PR and
+deleted when it closes. Fork PRs get none: their `GITHUB_TOKEN` is read-only.
+
 ## Hard rules
 
 Breaking any of these breaks the product's entire claim. They are not style preferences.
@@ -80,7 +100,8 @@ Each of these cost real debugging time here. Don't rediscover them.
 | `clipboard.writeText` | Does **not** reject on an unfocused document — it hangs forever. Always race a timeout. |
 | Test locators | Never match on text that changes (`name: 'Copy'` stops matching at `'Copied'`). Use `data-act="…"`. |
 | Prompt | Whisper reads ≤224 tokens and silently drops the rest. |
-| GitHub Pages | Must be enabled manually once. `enablement: true` does **not** work — `GITHUB_TOKEN` gets `Resource not accessible by integration`. |
+| GitHub Pages | Serves the **`gh-pages` branch**, set manually once — `GITHUB_TOKEN` gets `Resource not accessible by integration` and cannot set it for you. Root is the release, `pr/<n>/` are previews, so a release deploy must delete the root *except* `pr/`. |
+| `${{ }}` over two lines | A wrapped expression containing a URL parses as a YAML mapping (`https:`) and the workflow will not load. One line, or build the string in the shell. |
 | Git Bash on Windows | MSYS rewrites `!/path` args into `C:/Program Files/Git/...`. Use `MSYS_NO_PATHCONV=1` when verifying sparse-checkout patterns. |
 | `python .replace()` edits | Fail **silently** on no-match. Assert the match, or use the Edit tool. |
 

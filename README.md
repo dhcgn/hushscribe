@@ -247,22 +247,37 @@ only deleting the stored copy.
 
 ## Deployment
 
-Live at **[dhcgn.github.io/hushscribe](https://dhcgn.github.io/hushscribe/)**. Push to
-`main` and Actions builds, checks, and publishes it.
+Live at **[dhcgn.github.io/hushscribe](https://dhcgn.github.io/hushscribe/)**.
 
-**One-time setup on a fresh clone or fork:** Pages must be enabled with *Source: GitHub
-Actions* before the first deploy, or `configure-pages` fails with `Get Pages site failed`.
-The workflow cannot do this for you — `GITHUB_TOKEN` is refused with `Resource not
-accessible by integration`.
+**Only tagged releases publish.** A commit on `main` is not a version. Cut one and the
+tag becomes what the site reports:
 
 ```bash
-gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
+gh release create v1.2.0 --generate-notes
 ```
 
-Or Settings → Pages → Source: GitHub Actions.
+The footer shows that tag and links to its release notes, so the page always says which
+build you are looking at. Untagged builds — local, PR previews — say so instead of
+claiming a version they do not have.
+
+**Every pull request gets a preview** at `…/hushscribe/pr/<n>/`, posted as a comment on
+the PR and deleted when it closes. Previews skip the coverage gate (CI already ran it on
+the same commit) and do not touch the released site.
+
+**One-time setup on a fresh clone or fork:** Pages must serve the `gh-pages` branch —
+production at the root, previews under `pr/`. The workflow cannot set this for you;
+`GITHUB_TOKEN` is refused with `Resource not accessible by integration`.
+
+```bash
+gh api -X PUT repos/<owner>/<repo>/pages -f build_type=legacy -f 'source[branch]=gh-pages' -f 'source[path]=/'
+```
+
+Or Settings → Pages → Source: Deploy from a branch → `gh-pages` / `/`. The branch itself
+is created by the first deploy.
 
 `BASE_PATH` defaults to `/hushscribe/` for a project site — set it to `/` for a custom
-domain, and keep it in step with `base` in `vite.config.js`.
+domain, and keep it in step with `base` in `vite.config.js`. The workflow overrides it per
+deploy, one level deeper for a preview.
 
 ## Verifying the claim
 
