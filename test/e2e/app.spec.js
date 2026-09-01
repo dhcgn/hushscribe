@@ -218,6 +218,23 @@ test.describe('history', () => {
     expect(stored).not.toContain('blob:');
   });
 
+  test('ephemeral mode shows the result and writes nothing to disk', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.locator('#ephemeral').check();
+    await page.locator('#picker').setInputFiles(wav);
+
+    // The card is still there: this hides nothing from the person who asked for
+    // the transcript, it only keeps it off their disk.
+    await expect(page.locator('.card .seg')).toHaveCount(LINES.length);
+    await expect(page.locator('.hist')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('hc.transcripts'))).toBeNull();
+
+    // The preference itself has to persist, or it would need re-ticking every
+    // visit — which is how a privacy setting quietly stops being used.
+    await page.reload();
+    await expect(page.locator('#ephemeral')).toBeChecked();
+  });
+
   test('deletes a single entry without touching the rest', async ({ page }) => {
     await unlock(page, 'en');
     await page.locator('#picker').setInputFiles([wav, makeWav('second.wav', 6)]);
@@ -265,6 +282,34 @@ test.describe('data control', () => {
     ]);
     const dump = JSON.parse(await (await download.createReadStream()).toArray().then((c) => c.join('')));
     expect(dump.apiKey).toBe(KEY);
+  });
+
+  test('forgetting the key ends the session it opened', async ({ page }) => {
+    await unlock(page, 'en');
+    await page.getByRole('button', { name: 'Forget key' }).click();
+
+    // Not just the stored copy: the live client and its refresh timer go too, or
+    // the page keeps calling the API with a key the user believes is gone.
+    await expect(page.locator('#chip')).toHaveText('unverified');
+
+    await page.locator('#picker').setInputFiles(wav);
+    await expect(page.locator('#keyNote')).toContainText('Enter your API key first');
+    await expect(page.locator('.card')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('hc.transcripts'))).toBeNull();
+  });
+
+  test('clear everything keeps ephemeral mode on', async ({ page }) => {
+    await unlock(page);
+    await page.locator('#ephemeral').check();
+
+    page.on('dialog', (d) => d.accept());
+    await page.getByRole('button', { name: 'Clear everything' }).click();
+
+    // Not saving transcripts is a setting, not data. Clearing data must not
+    // quietly hand back the less private default.
+    await expect(page.locator('#ephemeral')).toBeChecked();
+    await page.reload();
+    await expect(page.locator('#ephemeral')).toBeChecked();
   });
 
   test('clear everything empties storage and the results list', async ({ page }) => {
@@ -698,7 +743,22 @@ test('bookmark link carries the key in the fragment, never the query string', as
 
   // Same-document navigation: nothing reloads, so this only works if the
   // fragment is also consumed on hashchange.
+  page.on('dialog', (d) => d.accept());
   await page.goto(href);
   await expect(page.locator('#key')).toHaveValue(KEY);
   expect(page.url()).not.toContain(KEY);
+});
+
+test('a key in the fragment is never taken without asking', async ({ page }) => {
+  await unlock(page);
+  page.on('dialog', (d) => d.dismiss());
+
+  // Any page anywhere can link here. Accepting silently would replace the
+  // stored key and bill this tab to a stranger's account.
+  await page.goto('#key=pm-someone-elses-key');
+
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hc.apiKey')));
+  expect(stored).toBe(KEY);
+  // Declined or not, the key does not stay in the address bar.
+  expect(page.url()).not.toContain('someone-elses');
 });

@@ -240,6 +240,11 @@ prompts, your last 20 transcripts. **Media files are never stored** — they exi
 the tab you dropped them into, which is why history has no player. Export or delete it all
 from the page.
 
+Tick **don't save new transcripts in this browser** in the history panel and nothing new is
+written to disk at all: results stay on screen for as long as the tab is open and go no
+further. Forgetting the key, or clearing everything, also ends the live session rather than
+only deleting the stored copy.
+
 ## Deployment
 
 Live at **[dhcgn.github.io/hushscribe](https://dhcgn.github.io/hushscribe/)**. Push to

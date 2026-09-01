@@ -733,15 +733,27 @@ The key-leak step is the one worth calling out:
 ```yaml
 - name: Assert no API key reached the bundle
   run: |
-    if grep -rIlE 'pm-[A-Za-z0-9_-]{12,}' dist/; then
+    hits=$(grep -rIoE 'pm-[A-Za-z0-9_-]{12,}|[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}' dist/ | grep -v '10000000-1000-4000-8000-100000000000' || true)
+    if [ -n "$hits" ]; then
+      echo "$hits"
       echo "::error::An API-key-shaped string is present in dist/. Refusing to continue."
       exit 1
     fi
 ```
 
-It turns §8.2's policy into an enforced invariant. Verified against a negative control — a
-key string planted into a built bundle, to prove the grep is not passing vacuously. A check
-nobody has watched fail is not yet a check.
+It turns §8.2's policy into an enforced invariant — but only once it matches the keys that
+actually exist. **The first version of this check could never have fired.** It matched
+`pm-`, which is what index.html's placeholder shows. A real Privatemode key is a UUID, and
+`p` and `m` are not hex digits, so no real key can contain `pm-`. The negative control that
+"proved" the grep worked was a `pm-` string too, so the control and the check shared one
+wrong assumption — which is the only way a vacuous check survives being tested.
+
+Both shapes are matched now, against three controls: a real key's shape, a `pm-` shape, and
+the untouched bundle. The one permitted hit is openai's randomUUID polyfill template, a
+published constant rather than a secret.
+
+A check nobody has watched fail is not yet a check — and a check whose negative control was
+written from the same misunderstanding as the check has still not been watched fail.
 
 Playwright's `webServer` runs `npm run build && npm run preview`, so **e2e tests hit the real
 production bundle** — the same artifact that deploys, at the same base path, with the same
@@ -769,6 +781,7 @@ All `localStorage`, prefix `hc.`, one key per concern.
 | `hc.model` | last used model |
 | `hc.view` | `comfortable` (default) or `compact` (§5.4) |
 | `hc.transcripts` | last **20** results — `{ name, model, lang, at, text, segments }` |
+| `hc.ephemeral` | `true` while new transcripts are kept out of storage (§7.4) |
 
 ```js
 // ponytail: localStorage caps around 5 MB and stores strings only. Segments roughly
@@ -812,8 +825,20 @@ https://host/path/#key=<apikey>
 ```
 
 **Fragment, never a query string.** A fragment is not sent to the server, does not appear in
-`Referer` headers, and is never written to an access log. On load: read it, persist it,
-`history.replaceState()` to strip it from the address bar immediately.
+`Referer` headers, and is never written to an access log. On load: read it, strip it from the
+address bar with `history.replaceState()`, **then ask before storing it**.
+
+**The confirm is not politeness.** A link is written by whoever wrote the link. Any page,
+mail, or message can send someone to `…/#key=<attacker key>`, and persisting that silently
+would replace the stored key and bind the tab to a stranger's account — their bill, their
+usage record, their metadata. Content stays confidential, since the key holder cannot decrypt
+what the enclave holds, but that is the only thing that survives; in every other respect it is
+a login-CSRF. So this is the one storage write in the app that asks first.
+
+Note the asymmetry it removes. The Verify button persists a key only *after* attestation
+succeeds. Until this, the fragment path persisted one before anything at all had been checked.
+
+The strip happens either way: a declined key still must not sit in the address bar.
 
 The "create bookmark link" button renders the anchor **only on explicit click**, beside a
 plain-language warning: the key lands in browser history, in synced bookmarks, and in
@@ -825,9 +850,39 @@ One button, one confirm dialog, removes every `hc.*` key and revokes any live ob
 Individual clear buttons stay next to each section — API key, prompts, transcripts — so
 dropping the history does not also cost you the key.
 
+**Clearing a credential ends the session it opened.** `endSession()` drops the client, the
+sealed measurement, and the refresh interval, and returns the proof row to *unverified*.
+Without it, "Forget key" removed only the stored copy: the five-minute `refreshSecret()`
+timer kept calling `api.privatemode.ai` with the key the user believed was gone, and the next
+dropped file transcribed happily and wrote history straight back into the storage they had
+just emptied. Both `clearKey` and `clearAll` call it, and `verify()`'s failure path reuses it
+rather than repeating the four lines.
+
+`hc.ephemeral` is deliberately restored after the sweep. Not saving transcripts is a
+*setting*, not data, and a privacy action must not quietly hand back the less private default.
+
 **Skipped:** encrypting the key at rest in `localStorage`. Any key the page can derive, an
 attacker running in the page can derive. Obfuscation that looks like security is worse than
 none.
+
+### 7.4 Ephemeral mode
+
+One checkbox in the history panel: *don't save new transcripts in this browser*.
+
+Saving stays the default, and should — a transcript you cannot find again is its own kind of
+data loss, and §7 exists to get your text back. But the app's whole premise is that the
+recording is confidential, and until this there was no way to ask for a transcription without
+the plaintext result being written to disk, where any same-origin script and anything reading
+the browser profile can reach it. A warning is not a control.
+
+The guard is on the **write**, not the render. The result card behaves exactly as it always
+did for as long as the tab is open — this hides nothing from the person who asked for the
+transcript. It simply never reaches storage, and a transcript that was never stored cannot
+leak from storage.
+
+Transcripts saved before the box was ticked stay until they are cleared. The checkbox governs
+new writes, "Clear transcripts" governs old ones. Conflating the two would mean a privacy
+toggle that silently deletes, which is a worse surprise than one that does not.
 
 ---
 
@@ -917,8 +972,12 @@ ever handles is the one the user types into their own browser.
 Typing an API key into every fresh browser profile gets old fast, so `.env` holds one:
 
 ```
-PRIVATEMODE_AI_API_KEY=pm-…
+PRIVATEMODE_AI_API_KEY=<uuid>
 ```
+
+Real keys are UUIDs. The `pm-…` that used to stand here, and still stands in index.html's
+placeholder, is the shape the CI grep in §6.5 was written against — see there for why that
+mattered.
 
 `.env` is gitignored, `.env.example` is committed, and the key is used for exactly one
 thing: **prefilling the API key field**. It is never auto-verified and never written to
@@ -939,8 +998,9 @@ Two mechanisms, one now and one later:
 Both are gitignored (`.env`, `.env.*`, `env.js`), with `!.env.example` re-included.
 
 The deploy workflow (§8.1) never sees a key, so there is no path by which one reaches the
-published site. **CI check worth adding before the first deploy:** grep `dist/` for `pm-` and
-fail the build on a hit. Cheap, and it turns a policy into an enforced invariant.
+published site. **CI check, now in both workflows:** grep `dist/` for key-shaped strings and
+fail the build on a hit. Cheap, and it turns a policy into an enforced invariant — provided
+the pattern matches a real key, which the first version did not (§6.5).
 
 `make-env.mjs` is deleted the day Vite arrives — it exists only to bridge a gap.
 

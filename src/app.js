@@ -18,6 +18,7 @@ if (self !== top) {
 const K = {
   key: 'hc.apiKey', prompts: 'hc.prompts', lang: 'hc.lang',
   model: 'hc.model', hist: 'hc.transcripts', view: 'hc.view',
+  ephemeral: 'hc.ephemeral',
 };
 const HISTORY_MAX = 20;
 
@@ -78,16 +79,24 @@ async function verify() {
         note($('keyNote'), `Lost the secure channel: ${e.message}`, true));
     }, 5 * 60_000);
   } catch (e) {
-    client = null;
-    sealedMeasurement = '';
-    clearInterval(refreshTimer);
-    setProof('idle');
+    endSession();
     // Reveal the key field again: whatever is stored did not work.
     document.documentElement.dataset.key = 'none';
     note($('keyNote'), `Verification failed: ${e.message}`, true);
   } finally {
     $('verify').disabled = false;
   }
+}
+
+/* Forgetting a credential has to end the session it opened. Otherwise the
+   refresh timer keeps calling api.privatemode.ai with the key that was just
+   deleted, and the next dropped file writes history straight back into the
+   storage the user just emptied. */
+function endSession() {
+  client = null;
+  sealedMeasurement = '';
+  clearInterval(refreshTimer);
+  setProof('idle');
 }
 
 function setProof(state, manifest, manifestDigest) {
@@ -237,10 +246,15 @@ async function transcribe(file) {
     );
   }
 
-  const at = new Date().toISOString();
+  // Ephemeral mode stops here. The card stays on screen for as long as this tab
+  // is open; nothing about it reaches disk. The guard is on the write, not the
+  // render, because a transcript that was never stored cannot leak from storage.
+  if ($('ephemeral').checked) return;
+
   const hist = load(K.hist, []);
   hist.unshift({
-    name: file.name, model: $('model').value, lang: lang || 'auto', at,
+    name: file.name, model: $('model').value, lang: lang || 'auto',
+    at: new Date().toISOString(),
     measurement: sealedMeasurement,
     text: segments ? toTXT(segments) : (res.text ?? ''),
     segments,
@@ -543,16 +557,22 @@ $('viewToggle').addEventListener('click', () => {
 });
 
 $('inclKey').addEventListener('change', (e) => { $('keyWarn').hidden = !e.target.checked; });
+$('ephemeral').addEventListener('change', (e) => save(K.ephemeral, e.target.checked));
 $('exportAll').addEventListener('click', exportAll);
 $('clearHist').addEventListener('click', () => { forget(K.hist); renderData(); renderHistory(); });
 $('clearKey').addEventListener('click', () => {
-  forget(K.key); $('key').value = ''; setKeyState();
+  forget(K.key); $('key').value = ''; setKeyState(); endSession();
   note($('keyNote'), 'Key removed from this browser.'); renderData();
 });
 $('clearAll').addEventListener('click', () => {
   if (!confirm('Delete the API key, saved prompts, and all transcripts from this browser?')) return;
+  // Not saving transcripts is a setting, not data. Clearing data must not
+  // quietly hand back the less private default.
+  const ephemeral = $('ephemeral').checked;
   Object.values(K).forEach(forget);
+  if (ephemeral) save(K.ephemeral, true);
   setKeyState();
+  endSession();
   objectUrls.splice(0).forEach(URL.revokeObjectURL);
   $('key').value = ''; $('prompt').value = ''; $('lang').value = '';
   $('results').replaceChildren();
@@ -576,8 +596,16 @@ $('mkLink').addEventListener('click', () => {
 function consumeFragmentKey() {
   const k = new URLSearchParams(location.hash.slice(1)).get('key');
   if (!k) return false;
-  save(K.key, k);
+  // Strip it first, and whatever the answer below: a key sitting in the address
+  // bar is the thing this mechanism exists to avoid.
   history.replaceState(null, '', location.pathname + location.search);
+  // Any page anywhere can link here with a key in the fragment. Taking one
+  // silently would replace the stored key and bill this tab to a stranger's
+  // account, so this is the one storage write that has to be asked for.
+  if (!confirm('This link carries an API key. Use it, replacing any key already saved in this browser?')) {
+    return false;
+  }
+  save(K.key, k);
   return true;
 }
 addEventListener('hashchange', () => {
@@ -598,6 +626,7 @@ if (!savedKey && devKey) note($('keyNote'), 'Key prefilled from .env (local deve
 
 $('lang').value = load(K.lang, '');
 $('model').value = load(K.model, 'whisper-large-v3');
+$('ephemeral').checked = load(K.ephemeral, false);
 // Open the walkthrough for people who never got as far as saving a key. No
 // dismissed-flag to store or go stale.
 $('guide').open = !savedKey;
