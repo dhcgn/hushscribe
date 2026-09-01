@@ -62,6 +62,29 @@ v0.2.0` to re-publish a tag unchanged.
 Every PR publishes a throwaway copy to `…/hushscribe/pr/<n>/`, commented on the PR and
 deleted when it closes. Fork PRs get none: their `GITHUB_TOKEN` is read-only.
 
+### The `gh-pages` branch
+
+Pages serves it directly, so it holds **built output and no source**. The root is the
+current release, `pr/<n>/` are open previews, and commits are named after what published
+them — `git log origin/gh-pages` is the deploy log. Nothing on it is authored; every byte
+is regenerable by re-running a deploy.
+
+It does not run CI, despite `ci.yml` matching `branches: ['**']`: a workflow only runs on a
+ref that *contains the workflow file*, and this branch has no `.github/`. The 27 MB
+`privatemode.wasm` is one git object however many previews reference it — identical blobs
+are shared, so it costs again only when `privatemode-ai` is upgraded.
+
+**What does grow:** deleting a preview removes it from the tree, not from history. Every PR
+push commits a fresh bundle — mostly a 1.35 MB sourcemap — and those objects stay forever.
+Roughly 1.7 MB per PR push and per release, permanently. The fix, if it starts to matter, is
+to stop keeping a history that has no value: commit each deploy as an orphan and force-push,
+so the branch stays one commit deep.
+
+```bash
+git checkout --orphan fresh && git add -A
+git commit -q -m "$MSG" && git push -qf origin fresh:gh-pages
+```
+
 ## Hard rules
 
 Breaking any of these breaks the product's entire claim. They are not style preferences.
@@ -101,6 +124,8 @@ Each of these cost real debugging time here. Don't rediscover them.
 | Test locators | Never match on text that changes (`name: 'Copy'` stops matching at `'Copied'`). Use `data-act="…"`. |
 | Prompt | Whisper reads ≤224 tokens and silently drops the rest. |
 | GitHub Pages | Serves the **`gh-pages` branch**, set manually once — `GITHUB_TOKEN` gets `Resource not accessible by integration` and cannot set it for you. Root is the release, `pr/<n>/` are previews, so a release deploy must delete the root *except* `pr/`. |
+| Branch-source Pages | Switching the source to a branch does **not** build. Pages builds on *push* to it, so a branch populated before the switch serves 404 forever. Kick it once with `gh api -X POST repos/<owner>/<repo>/pages/builds`. |
+| Workflows on `gh-pages` | A workflow runs only on refs that contain its file. That — not the branch filter — is why `ci.yml`'s `branches: ['**']` never fires on deploy commits. |
 | `gh` with no checkout | A cleanup job that skips `actions/checkout` has no git repo, so `gh` cannot infer the repository: `fatal: not a git repository`. Set `GH_REPO`. |
 | `${{ }}` over two lines | A wrapped expression containing a URL parses as a YAML mapping (`https:`) and the workflow will not load. One line, or build the string in the shell. |
 | Git Bash on Windows | MSYS rewrites `!/path` args into `C:/Program Files/Git/...`. Use `MSYS_NO_PATHCONV=1` when verifying sparse-checkout patterns. |
