@@ -153,8 +153,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.number }}
-          BODY: ${{ github.event.action == 'closed'
-                    && 'Preview removed.'
-                    || format('Preview of this PR: https://{0}.github.io/{1}/pr/{2}/',
-                              github.repository_owner, github.event.repository.name, github.event.number) }}
-        run: gh pr comment "$PR" --edit-last --body "$BODY" || gh pr comment "$PR" --body "$BODY"
+          ACTION: ${{ github.event.action }}
+          # Built here rather than in a `${{ }}` expression: a URL's `https:`
+          # inside one reads as a YAML mapping and fails to parse.
+          URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr/${{ github.event.number }}/
+        run: |
+          body="Preview of this PR: $URL"
+          if [ "$ACTION" = closed ]; then body='Preview removed.'; fi
+          gh pr comment "$PR" --edit-last --body "$body" || gh pr comment "$PR" --body "$body"
