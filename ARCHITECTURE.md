@@ -54,7 +54,7 @@ and the [reference](https://docs.privatemode.ai/reference/sdk/manifest) — is:
 
 `ReferenceValues.snp[].TrustedMeasurement` is the **SEV-SNP launch measurement**: 96 hex
 characters identifying the exact confidential-VM image. That is the enclave identity worth
-showing. `src/manifest.js` reads it, and additionally computes SHA-256 over
+showing. `src/manifest.ts` reads it, and additionally computes SHA-256 over
 `client.manifestBytes` — the raw bytes, never a re-serialised object, because the SDK warns
 JSON round-tripping can alter them and a digest nobody can reproduce is noise.
 
@@ -121,8 +121,8 @@ dressing up as protection.
 ```mermaid
 flowchart LR
     subgraph browser["Browser tab — the only place plaintext exists"]
-        UI["index.html + app.js<br/>drop, form, player, results"]
-        RE["reencode.js<br/>ffmpeg.wasm (lazy, Stage 2)"]
+        UI["index.html + main.ts<br/>drop, form, player, results"]
+        RE["reencode.ts<br/>ffmpeg.wasm (lazy, Stage 2)"]
         SDK["privatemode-ai SDK<br/>+ privatemode.wasm"]
         LS[("localStorage<br/>hc.* — key · prompts · lang · transcripts")]
         UI --> RE --> SDK
@@ -130,7 +130,7 @@ flowchart LR
     end
 
     subgraph static["Static host (GitHub Pages / any CDN)"]
-        FILES["index.html, app.js,<br/>privatemode.wasm, ffmpeg-core.wasm"]
+        FILES["index.html, main.ts bundle,<br/>privatemode.wasm, ffmpeg-core.wasm"]
     end
 
     subgraph tee["Attested Confidential VM (AMD SEV-SNP)"]
@@ -156,34 +156,52 @@ that ever leaves the tab, and it is ciphertext.
 
 ```
 index.html                  # markup only — no inline styles or scripts (§8.1)
-src/app.js                  # UI, storage, client lifecycle, transcribe loop
-src/gate.js                 # pure: format + size admission        (39 unit tests)
-src/segments.js             # pure: VTT/SRT/text, prompt budget    (40 unit tests)
-src/pricing.js              # pure: per-minute rates, estimates    (29 unit tests)
-src/manifest.js             # pure: SNP measurement, manifest hash (22 unit tests)
+src/main.ts                 # boot + event wiring; the entry index.html loads
+src/client.ts               # the SDK seam: TranscriptionClient, makeClient, __HC_CLIENT
+src/session.ts              # pure: verified client, measurement, refresh timer (11 unit tests)
+src/storage.ts              # pure: typed hc.* keys, export shape, wipe        (13 unit tests)
+src/share.ts                # pure: collect a shared file from sw.js           ( 4 unit tests)
+src/gate.ts                 # pure: format + size admission                    (40 unit tests)
+src/segments.ts             # pure: VTT/SRT/text, prompt budget                (40 unit tests)
+src/pricing.ts              # pure: per-minute rates, estimates                (31 unit tests)
+src/manifest.ts             # pure: SNP measurement, manifest hash             (22 unit tests)
+src/proof.ts                # the session instance + the attestation row
+src/transcribe.ts           # take(): gate → probe → price → send → card → history
+src/card.ts                 # result-card pieces shared with history
+src/history.ts  src/prompts.ts  src/media.ts  src/dom.ts       # DOM modules
+src/types.ts  src/env.d.ts  # shared domain types; the build-time defines
 src/style.css               # all styles; hashed and minified by Vite
-src/reencode.js             # stage 2 — dynamic import(), pulls in ffmpeg.wasm
+src/reencode.ts             # stage 2 — dynamic import(), pulls in ffmpeg.wasm
 
-vite.config.js              # base path, wasm plugin, CSP injection, dev-key mapping
-playwright.config.js        # default suite; excludes @smoke
-playwright.smoke.config.js  # opt-in real-enclave suite
+tsconfig.json               # solution file → tsconfig.app.json (src/) + tsconfig.node.json (configs, test/)
+vite.config.ts              # base path, wasm plugin, CSP injection, dev-key mapping, vitest
+playwright.config.ts        # default suite; excludes @smoke
+playwright.smoke.config.ts  # opt-in real-enclave suite
 
-test/gate.test.js           # vitest
-test/segments.test.js       # vitest
-test/pricing.test.js        # vitest
-test/manifest.test.js       # vitest, against a real captured manifest
+test/*.test.ts              # vitest, one per pure module
+test/manifest.test.ts       # vitest, against a real captured manifest
 test/fixtures/manifest.json # a genuine manifest from cdn.confidential.cloud
-test/e2e/app.spec.js        # playwright, drives the real UI      (26 tests)
-test/e2e/fake-client.js     # stand-in client + generated fixtures (never shipped)
-test/e2e/smoke.spec.js      # @smoke — real key, real enclave, real money
+test/e2e/app.spec.ts        # playwright, drives the real UI      (59 tests)
+test/e2e/fake-client.ts     # stand-in client, typed against the seam (never shipped)
+test/e2e/fixtures.ts        # generated media fixtures (Node only)
+test/e2e/smoke.spec.ts      # @smoke — real key, real enclave, real money
 
 .github/workflows/ci.yml
 .github/workflows/deploy.yml
 ```
 
-`segments.js` and `gate.js` exist as separate modules **for one reason: they are the logic
-worth testing without a browser.** Everything else is DOM wiring that Playwright covers.
-That is the whole design rationale for the file split — not layering for its own sake.
+The pure modules — `gate`, `segments`, `pricing`, `manifest`, `storage`, `session`, `share` —
+exist as separate files **for one reason: they are the logic worth testing without a
+browser.** Everything else is DOM wiring that Playwright covers. That is the whole design
+rationale for the file split — not layering for its own sake. The three that were carved out
+of the old `app.js` each guard a bug an end-to-end test cannot reach: a refresh timer
+outliving "Forget key" (fake timers), a blocked or full `localStorage` (a throwing backing
+store), and a share-sheet worker that never answers (a timeout).
+
+Everything is TypeScript 7. Vite (Oxc) strips the annotations; `tsc -p` checks them in two
+projects — `tsconfig.app.json` for `src/` with `vite/client`, `tsconfig.node.json` for the
+configs and tests with `@types/node`. A module a unit test imports must therefore not read
+`import.meta.env` or a build-time define; `main.ts` passes those values in.
 
 `style.css` moved out of `index.html` (where §3.1 originally put it) once the CSP became
 real: Vite hashes and minifies a linked stylesheet, and `style-src 'self'` forbids the
@@ -325,12 +343,12 @@ No transcoding, no ffmpeg in the bundle. A working app in a fraction of the code
 messages name the actual problem (`".mkv is not supported"`, `"68 MB exceeds the 50 MB
 limit"`) so Stage 2's value is obvious before it exists.
 
-This admission logic lives in `gate.js` and is the single easiest thing in the project to
+This admission logic lives in `gate.ts` and is the single easiest thing in the project to
 unit-test — table-driven, no browser, no network.
 
 ### Stage 2 — re-encode fallback
 
-Triggered only when Stage 1 would reject. Lazy `import('./reencode.js')`, so users who never
+Triggered only when Stage 1 would reject. Lazy `import('./reencode')`, so users who never
 need it never download ffmpeg.
 
 ```mermaid
@@ -415,16 +433,16 @@ Each finished file renders as:
   `.ogg` are containers that may carry audio only; an audio-only `.webm` rendered as
   `<video>` paints an empty black viewport above the controls, which is exactly what
   shipped. `probeMedia()` loads metadata into a detached `<video>` and reads
-  `videoWidth`/`videoHeight` — zero means no video track. `gate.js` deliberately exposes no
+  `videoWidth`/`videoHeight` — zero means no video track. `gate.ts` deliberately exposes no
   `isVideo()`, because an extension names a container and cannot describe its contents.
-- **Captions via a native `<track>`.** `segments.js` renders the segments to WebVTT once;
+- **Captions via a native `<track>`.** `segments.ts` renders the segments to WebVTT once;
   that VTT is attached as `<track default>` and the browser draws the subtitles itself. No
   caption library, no render loop.
 - A **clickable segment list** — `[00:01:23] spoken words here`. Clicking a row seeks the
   player; a `timeupdate` listener highlights the active row. That listener is the only
   bespoke sync code in the feature, roughly fifteen lines.
 - Export buttons: `.vtt`, `.srt`, `.txt`, `.json` — all generated from the same segments
-  array by `segments.js`.
+  array by `segments.ts`.
 
 Using the browser's own caption renderer instead of a subtitle library is the whole trick
 here: WebVTT is a native platform feature and it is already exactly the format we need.
@@ -620,7 +638,7 @@ and why it is worth saying out loud that this is a trade, not a free win.
 twice over: the site is served from `/hushscribe/`, and each PR preview from
 `/hushscribe/pr/<n>/` (§8.1). An action outside the manifest's scope is dropped by the
 browser without an error anyone will see, so the worker derives both the path it answers and
-the URL it redirects to from `registration.scope`, and `test/webmanifest.test.js` resolves
+the URL it redirects to from `registration.scope`, and `test/webmanifest.test.ts` resolves
 every manifest URL against a preview base to keep it that way.
 
 **The response is a 303 redirect**, to `./?shared=1` — not a rendered page. A POST left in the
@@ -649,7 +667,7 @@ npm run test:ui   # playwright --ui, for debugging a failing GUI test
 
 | Layer | Tool | Covers |
 |---|---|---|
-| **Unit** | **Vitest** | `gate.js` admission rules (every format × size boundary), `segments.js` VTT/SRT/text rendering, timestamp formatting, prompt-budget thresholds (§3.4), storage export shape. |
+| **Unit** | **Vitest** | `gate.ts` admission rules (every format × size boundary), `segments.ts` VTT/SRT/text rendering, timestamp formatting, prompt-budget thresholds (§3.4), `storage.ts` export shape and blocked-storage fallbacks, `session.ts` refresh timer and failure paths (fake timers), `share.ts` MessagePort relay and timeout. |
 | **GUI / e2e** | **Playwright** | Real Chromium against the real built page: drop a fixture file, fill the form, assert the segment list renders, click a segment and assert the player seeks, click export and assert the downloaded bytes, clear-all and assert `localStorage` is empty. |
 
 Vitest is free — Vite is already the build tool, so it is config-free and shares the same
@@ -664,28 +682,36 @@ goes to Vitest, real DOM goes to a real browser, and there is no useful middle.
 E2E tests cannot hold a real API key or hit a real TEE. hushscribe needs exactly **one line**
 of production code to be testable:
 
-```js
-// src/app.js — the only test-facing hook in shipped code
-const makeClient = globalThis.__HC_CLIENT ?? ((opts) => new PrivatemodeAI(opts));
+```ts
+// src/client.ts — the only test-facing hook in shipped code
+const real: ClientFactory = (opts) => new PrivatemodeAI(opts);
+export const makeClient: ClientFactory = globalThis.__HC_CLIENT ?? real;
 ```
 
-Playwright supplies the fake from the test side via `page.addInitScript()`:
+`ClientFactory` returns a `TranscriptionClient`: the structural subset of the SDK this app
+uses (`verify`, `refreshSecret`, `manifestBytes`, `audio.transcriptions.create`), with the
+transcription types narrowed from OpenAI's own declarations. Annotating `real` with it is the
+compile-time proof that the SDK fits the seam.
 
-```js
-// test/e2e/fake-client.js — lives in test/, never bundled, never deployed
-await page.addInitScript(() => {
-  globalThis.__HC_CLIENT = () => ({
-    verify: async () => ({ manifest: { digest: 'sha256:fixture' } }),
-    refreshSecret: async () => {},
-    audio: { transcriptions: { create: async () => ({
-      text: 'hello world',
-      segments: [
-        { start: 0.0, end: 1.5, text: 'hello' },
-        { start: 1.5, end: 3.0, text: 'world' },
-      ],
+Playwright supplies the fake from the test side via `page.addInitScript()`, and the fake is
+annotated with the same type — so a field the SDK does not have fails to compile:
+
+```ts
+// test/e2e/fake-client.ts — lives in test/, never bundled, never deployed
+await page.addInitScript(({ manifest, lines }: FakeArgs) => {
+  const bytes = new TextEncoder().encode(JSON.stringify(manifest));
+  globalThis.__HC_CLIENT = (): TranscriptionClient => ({
+    manifestBytes: bytes,
+    async verify() { return { manifest }; },
+    async refreshSecret() {},
+    audio: { transcriptions: { create: async ({ response_format }) => ({
+      text: lines.join(' '),
+      ...(response_format === 'verbose_json' && {
+        segments: lines.map((text, i) => ({ start: i * 2, end: (i + 1) * 2, text })),
+      }),
     })}},
   });
-});
+}, { manifest: MANIFEST, lines: LINES });
 ```
 
 Why this and not a `?mock=1` URL flag or network interception:
@@ -699,7 +725,7 @@ Why this and not a `?mock=1` URL flag or network interception:
   anything; the hook grants nothing new.
 
 A separate `@smoke` spec exercises the *real* SDK against a real enclave, transcribing the
-speeches in `test-data/`. It lives behind its own `playwright.smoke.config.js`, and the
+speeches in `test-data/`. It lives behind its own `playwright.smoke.config.ts`, and the
 default config excludes `@smoke` outright.
 
 **Having a key is deliberately not enough to opt in.** The first version skipped only when
@@ -708,7 +734,7 @@ quietly spend real credit on the real API. Found by doing exactly that. Opting i
 explicit command:
 
 ```bash
-npm run test:smoke      # playwright test -c playwright.smoke.config.js
+npm run test:smoke      # playwright test -c playwright.smoke.config.ts
 ```
 
 Never wire this into pull-request CI: fork PRs cannot read secrets, and every run costs
@@ -729,17 +755,22 @@ The real manifest has never had a `digest` field. Two invented artefacts agreein
 other is not a test — **a fake that does not mirror the real contract tests nothing but
 itself.** The seam is still right; what was missing was grounding.
 
-So `test/e2e/fake-client.js` is now derived from a captured response, and
+So `test/e2e/fake-client.ts` is now derived from a captured response, and
 `test/fixtures/manifest.json` is a real manifest fetched from
-`cdn.confidential.cloud/privatemode/v2/manifest.json`. `test/manifest.test.js` asserts
+`cdn.confidential.cloud/privatemode/v2/manifest.json`. `test/manifest.test.ts` asserts
 against those real bytes, including one test whose only job is to pin the fact that killed
 us:
 
-```js
+```ts
 it('has no digest field — the assumption that caused the bug', () => {
   expect('digest' in REAL).toBe(false);
 });
 ```
+
+With TypeScript the same fact is pinned twice more, at compile time: the fixture is imported
+as JSON and assigned to the SDK's `Manifest` type, and the e2e fake's `MANIFEST` is declared
+`satisfies Manifest`. Inventing `digest` in either place now fails `npm run typecheck`
+before any test runs.
 
 The rule going forward: **when a fake stands in for someone else's API, its shape comes from
 that API's types or a captured response, never from what the calling code happens to want.**
@@ -752,11 +783,12 @@ CI, not quietly in front of a user.
 
 ### 6.4 What the coverage number counts
 
-`npm run coverage` measures **only the four pure modules** — `gate`, `segments`, `pricing`,
-`manifest` — currently 100% of lines and 97.75% of branches, with CI failing below
-95/90/95/95 so the figure cannot quietly rot.
+`npm run coverage` measures **only the seven pure modules** — `gate`, `segments`, `pricing`,
+`manifest`, `storage`, `session`, `share` — currently 100% of lines and 98% of branches,
+with CI failing below 95/90/95/95 so the figure cannot quietly rot.
 
-`app.js` is excluded on purpose. It is DOM wiring, exercised by Playwright against the real
+The DOM modules (`main`, `proof`, `transcribe`, `card`, `history`, `prompts`, `media`,
+`dom`) are excluded on purpose. They are DOM wiring, exercised by Playwright against the real
 built bundle, and Vitest cannot see any of that. Two dishonest options were available:
 include it and report ~40%, which describes the tool rather than the code, or fold e2e
 coverage in by instrumenting the bundle with Istanbul. The second is tempting but breaks a
@@ -1153,6 +1185,8 @@ a two-hour recording.**
 | Native `<track>` + WebVTT for captions | The browser already renders subtitles. No caption library. |
 | Vitest + Playwright, nothing between | Pure logic without a browser, real DOM in a real browser, no jsdom middle ground. |
 | One-line `__HC_CLIENT` seam | Testable GUI with zero mock code in the shipped bundle. |
+| TypeScript, not JSDoc | §6.3 already says: prefer the SDK's own `.d.ts`. A fake that must compile against a seam derived from those types cannot drift from the real contract. Oxc strips the types in the bundle and `tsc` only checks — zero runtime cost, no third-party code. |
+| Two tsconfig projects, no references | `vite/client` and the build-time defines belong to the browser; `@types/node` belongs to configs and tests. Keeping them apart makes a stray `Buffer` in `src/` a type error, and forces the unit-tested modules to stay free of `import.meta.env`. |
 | E2E runs against `dist/` via `vite preview` | Tests the artifact that actually deploys. |
 | `localStorage`, not IndexedDB | Five small values and a capped list. Marked for upgrade. |
 | History stores text, never media | The transcript is small and useful later; the recording is the sensitive artifact and has no reason to outlive the tab. |

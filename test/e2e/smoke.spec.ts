@@ -16,15 +16,15 @@ import { expect, test } from '@playwright/test';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA = join(HERE, '..', '..', 'test-data');
 
-function apiKey() {
-  if (process.env.PRIVATEMODE_AI_API_KEY) return process.env.PRIVATEMODE_AI_API_KEY;
+function apiKey(): string {
+  if (process.env['PRIVATEMODE_AI_API_KEY']) return process.env['PRIVATEMODE_AI_API_KEY'];
   const env = join(HERE, '..', '..', '.env');
   if (!existsSync(env)) return '';
   return (readFileSync(env, 'utf8').match(/^PRIVATEMODE_AI_API_KEY=(.*)$/m)?.[1] ?? '').trim();
 }
 
 const KEY = apiKey();
-const media = (name) => join(DATA, name);
+const media = (name: string): string => join(DATA, name);
 
 test.describe('@smoke real enclave', () => {
   test.skip(!KEY, 'no PRIVATEMODE_AI_API_KEY — smoke tests are opt-in');

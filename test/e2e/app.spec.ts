@@ -1,8 +1,7 @@
-import { expect, test } from '@playwright/test';
-import {
-  LINES, MANIFEST, MEASUREMENT, PROOF_LINE,
-  installFakeClient, makeUndecodable, makeUnsupported, makeWav, webm,
-} from './fake-client.js';
+import { expect, test, type Page } from '@playwright/test';
+import type { ExportFile } from '../../src/types';
+import { LINES, MEASUREMENT, PROOF_LINE, installFakeClient } from './fake-client';
+import { makeUndecodable, makeUnsupported, makeWav, webm } from './fixtures';
 
 const KEY = 'pm-test-key';
 
@@ -10,11 +9,20 @@ const wav = makeWav();
 const opus = makeUnsupported();
 
 /** Verify the key so the dropzone becomes live. */
-async function unlock(page, lang = 'en') {
+async function unlock(page: Page, lang: string | null = 'en'): Promise<void> {
   await page.getByLabel('Privatemode API key').fill(KEY);
   await page.getByRole('button', { name: 'Verify & save' }).click();
   await expect(page.locator('#chip')).toHaveText('sealed');
   if (lang) await page.getByLabel('Spoken language').selectOption(lang);
+}
+
+/** The JSON a download carried. */
+async function downloaded<T>(download: { createReadStream(): Promise<NodeJS.ReadableStream> }): Promise<T> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of await download.createReadStream()) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
 }
 
 test.beforeEach(async ({ page }) => {
@@ -45,7 +53,6 @@ test.describe('attestation', () => {
     await expect(detail).toContainText(/Verifier Wasm SHA-256/);
     // The value shown must be the one actually pinned into the build.
     await expect(detail).toContainText(/[0-9a-f]{64}/);
-    await expect(detail).toContainText(/[0-9a-f]{64}/);
     await expect(detail).toContainText('coordinator');
   });
 
@@ -53,7 +60,7 @@ test.describe('attestation', () => {
   // manifest has never had, and the fake agreed with it. Guard both directions.
   test('never renders a placeholder in place of a measurement', async ({ page }) => {
     await unlock(page);
-    const line = await page.locator('#proofLine').textContent();
+    const line = (await page.locator('#proofLine').textContent()) ?? '';
     expect(line).not.toMatch(/manifest carried|undefined|null|NaN/);
     expect(line.length).toBeGreaterThan(8);
   });
@@ -92,16 +99,16 @@ test.describe('transcription', () => {
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
     await expect(card.locator('.card-chain')).toHaveText(MEASUREMENT.slice(0, 12));
-    await expect(card.locator('.seg').first()).toContainText(LINES[0]);
+    await expect(card.locator('.seg').first()).toContainText(LINES[0] ?? '');
 
     // The browser parsed our generated WebVTT — the whole reason there is no
     // caption library in this project.
     await expect
-      .poll(() => card.locator('audio').evaluate((a) => a.textTracks[0]?.cues?.length ?? 0))
+      .poll(() => card.locator('audio').evaluate((a: HTMLMediaElement) => a.textTracks[0]?.cues?.length ?? 0))
       .toBe(LINES.length);
 
     await card.locator('.seg').nth(2).click();
-    expect(await card.locator('audio').evaluate((a) => a.currentTime)).toBeCloseTo(4, 1);
+    expect(await card.locator('audio').evaluate((a: HTMLMediaElement) => a.currentTime)).toBeCloseTo(4, 1);
 
     for (const ext of ['.vtt', '.srt', '.txt', '.json']) {
       await expect(card.getByRole('button', { name: ext, exact: true })).toBeVisible();
@@ -114,12 +121,12 @@ test.describe('transcription', () => {
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
 
-    await card.locator('audio').evaluate((a) => {
+    await card.locator('audio').evaluate((a: HTMLMediaElement) => {
       a.currentTime = 5;
       a.dispatchEvent(new Event('timeupdate'));
     });
     await expect(card.locator('.seg.on')).toHaveCount(1);
-    await expect(card.locator('.seg.on')).toContainText(LINES[2]);
+    await expect(card.locator('.seg.on')).toContainText(LINES[2] ?? '');
   });
 
   test('without a language: plain text, and no subtitle exports to offer', async ({ page }) => {
@@ -127,7 +134,7 @@ test.describe('transcription', () => {
     await page.locator('#picker').setInputFiles(wav);
 
     const card = page.locator('.card').first();
-    await expect(card.locator('.plain')).toContainText(LINES[0]);
+    await expect(card.locator('.plain')).toContainText(LINES[0] ?? '');
     await expect(card.locator('.seg')).toHaveCount(0);
     await expect(card.locator('track')).toHaveCount(0);
     await expect(card.locator('.row button')).toHaveText(['.txt', '.json', 'Copy', 'Redo']);
@@ -179,7 +186,7 @@ test.describe('player element', () => {
     const card = page.locator('.card').first();
     await expect(card.locator('video')).toHaveCount(1);
     await expect(card.locator('audio')).toHaveCount(0);
-    expect(await card.locator('video').evaluate((v) => v.videoHeight)).toBeGreaterThan(0);
+    expect(await card.locator('video').evaluate((v: HTMLVideoElement) => v.videoHeight)).toBeGreaterThan(0);
   });
 
   test('still captions and seeks an audio-only container', async ({ page }) => {
@@ -189,10 +196,10 @@ test.describe('player element', () => {
     const card = page.locator('.card').first();
     await expect(card.locator('.seg')).toHaveCount(LINES.length);
     await expect
-      .poll(() => card.locator('audio').evaluate((a) => a.textTracks[0]?.cues?.length ?? 0))
+      .poll(() => card.locator('audio').evaluate((a: HTMLMediaElement) => a.textTracks[0]?.cues?.length ?? 0))
       .toBe(LINES.length);
     await card.locator('.seg').nth(2).click();
-    expect(await card.locator('audio').evaluate((a) => a.currentTime)).toBeCloseTo(4, 1);
+    expect(await card.locator('audio').evaluate((a: HTMLMediaElement) => a.currentTime)).toBeCloseTo(4, 1);
   });
 });
 
@@ -259,16 +266,16 @@ test.describe('data control', () => {
     await page.locator('#picker').setInputFiles(wav);
     await expect(page.locator('.hist')).toHaveCount(1);
 
-    const download = await Promise.race([
+    const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: 'Export all data' }).click().then(() => page.waitForEvent('download')),
+      page.getByRole('button', { name: 'Export all data' }).click(),
     ]);
     expect(download.suggestedFilename()).toMatch(/^hushscribe-export-\d{4}-\d{2}-\d{2}\.json$/);
 
-    const dump = JSON.parse(await (await download.createReadStream()).toArray().then((c) => c.join('')));
+    const dump = await downloaded<ExportFile>(download);
     expect(dump.app).toBe('hushscribe');
-    expect(dump.apiKey).toBeNull();               // opt-in only — an export travels
-    expect(dump.transcripts[0].text).toContain(LINES[0]);
+    expect(dump.apiKey).toBeNull(); // opt-in only — an export travels
+    expect(dump.transcripts[0]?.text).toContain(LINES[0]);
   });
 
   test('includes the key only when explicitly opted in, and warns', async ({ page }) => {
@@ -280,7 +287,7 @@ test.describe('data control', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Export all data' }).click(),
     ]);
-    const dump = JSON.parse(await (await download.createReadStream()).toArray().then((c) => c.join('')));
+    const dump = await downloaded<ExportFile>(download);
     expect(dump.apiKey).toBe(KEY);
   });
 
@@ -302,7 +309,7 @@ test.describe('data control', () => {
     await unlock(page);
     await page.locator('#ephemeral').check();
 
-    page.on('dialog', (d) => d.accept());
+    page.on('dialog', (d) => void d.accept());
     await page.getByRole('button', { name: 'Clear everything' }).click();
 
     // Not saving transcripts is a setting, not data. Clearing data must not
@@ -317,7 +324,7 @@ test.describe('data control', () => {
     await page.locator('#picker').setInputFiles(wav);
     await expect(page.locator('.hist')).toHaveCount(1);
 
-    page.on('dialog', (d) => d.accept());
+    page.on('dialog', (d) => void d.accept());
     await page.getByRole('button', { name: 'Clear everything' }).click();
 
     await expect(page.locator('.card')).toHaveCount(0);
@@ -490,7 +497,7 @@ test.describe('cost estimate', () => {
 });
 
 test.describe('view toggle', () => {
-  const proseVisible = (page) => page.locator('.hero h1').isVisible();
+  const proseVisible = (page: Page): Promise<boolean> => page.locator('.hero h1').isVisible();
 
   test('starts comfortable and switches to compact', async ({ page }) => {
     expect(await proseVisible(page)).toBe(true);
@@ -514,14 +521,14 @@ test.describe('view toggle', () => {
     await expect(page.locator('.note.warn.prose')).toBeHidden();
     await expect(page.locator('.note.warn.dense')).toBeVisible();
     await expect(page.locator('.note.warn.dense')).toContainText('translates');
-    await expect(page.locator('#rate')).toBeVisible();              // cost per minute
-    await expect(page.locator('#proof')).toBeVisible();             // attestation
+    await expect(page.locator('#rate')).toBeVisible(); // cost per minute
+    await expect(page.locator('#proof')).toBeVisible(); // attestation
     await expect(page.locator('#drop')).toBeVisible();
   });
 
   test('hides the key field once a key is stored, and only then', async ({ page }) => {
     await page.locator('#viewToggle').click();
-    await expect(page.locator('#access')).toBeVisible();   // nothing saved yet
+    await expect(page.locator('#access')).toBeVisible(); // nothing saved yet
 
     await unlock(page);
     await expect(page.locator('html')).toHaveAttribute('data-key', 'saved');
@@ -606,8 +613,8 @@ test.describe('view toggle', () => {
     await page.reload({ waitUntil: 'commit' });
     // Sampled the instant the document exists: view-init.js runs synchronously in
     // <head>, so the attribute must already be set before any body paint. This is
-    // the entire reason that file exists rather than doing it in app.js.
-    await page.waitForFunction(() => document.documentElement.dataset.view === 'compact');
+    // the entire reason that file exists rather than doing it in main.ts.
+    await page.waitForFunction(() => document.documentElement.dataset['view'] === 'compact');
     expect(await proseVisible(page)).toBe(false);
     await expect(page.locator('#viewToggle')).toHaveText('Full');
   });
@@ -637,7 +644,7 @@ test.describe('view toggle', () => {
 
 test.describe('verify on load', () => {
   test('attests automatically when a key is already saved', async ({ page }) => {
-    await unlock(page);                      // saves the key
+    await unlock(page); // saves the key
     await page.reload();
 
     // No click: the page should come back sealed and ready for a file.
@@ -665,13 +672,21 @@ test.describe('verify on load', () => {
 });
 
 test.describe('installable app', () => {
+  /** The fields this test reads; the manifest carries more. */
+  interface WebManifest {
+    name: string;
+    display: string;
+    icons: { src: string; sizes?: string; purpose?: string }[];
+  }
+
   test('serves a valid manifest with the icons it names', async ({ page, request }) => {
     const link = await page.locator('link[rel="manifest"]').getAttribute('href');
     expect(link).toBeTruthy();
+    const manifestUrl = new URL(link ?? '', page.url());
 
-    const res = await request.get(new URL(link, page.url()).href);
+    const res = await request.get(manifestUrl.href);
     expect(res.ok()).toBe(true);
-    const m = await res.json();
+    const m = (await res.json()) as WebManifest;
     expect(m.name).toContain('hushscribe');
     expect(m.display).toBe('standalone');
     expect(m.icons.length).toBeGreaterThanOrEqual(2);
@@ -680,7 +695,7 @@ test.describe('installable app', () => {
 
     // A manifest naming icons that 404 is worse than no manifest.
     for (const icon of m.icons) {
-      const img = await request.get(new URL(icon.src, new URL(link, page.url())).href);
+      const img = await request.get(new URL(icon.src, manifestUrl).href);
       expect(img.ok(), `${icon.src} must exist`).toBe(true);
       expect(img.headers()['content-type']).toContain('image/png');
     }
@@ -712,17 +727,17 @@ test.describe('android share target', () => {
      because there is no server that could. Driving that POST from the page is as
      close to the real thing as a desktop browser gets: same worker, same request,
      same redirect. */
-  async function controlled(page) {
+  async function controlled(page: Page): Promise<void> {
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready;
       if (navigator.serviceWorker.controller) return;
-      await new Promise((done) => {
-        navigator.serviceWorker.addEventListener('controllerchange', done, { once: true });
+      await new Promise<void>((done) => {
+        navigator.serviceWorker.addEventListener('controllerchange', () => done(), { once: true });
       });
     });
   }
 
-  const share = (page, filename) => page.evaluate(async (name) => {
+  const share = (page: Page, filename: string): Promise<string> => page.evaluate(async (name) => {
     const body = new FormData();
     body.append('media', new File([new Uint8Array(2048)], name, { type: 'audio/wav' }));
     return (await fetch('share-target', { method: 'POST', body })).url;
@@ -759,8 +774,10 @@ test.describe('content security policy', () => {
   // style="" attribute silently breaks layout in production while looking fine
   // in dev. This is exactly the failure that test would otherwise not catch.
   test('the production page violates nothing', async ({ page }) => {
-    const violations = [];
-    page.on('console', (m) => /Content Security Policy/.test(m.text()) && violations.push(m.text()));
+    const violations: string[] = [];
+    page.on('console', (m) => {
+      if (/Content Security Policy/.test(m.text())) violations.push(m.text());
+    });
 
     await installFakeClient(page);
     await page.goto('.');
@@ -788,13 +805,13 @@ test('bookmark link carries the key in the fragment, never the query string', as
   await unlock(page);
   await page.getByRole('button', { name: 'Create bookmark link' }).click();
 
-  const href = await page.locator('#keyNote a').getAttribute('href');
+  const href = (await page.locator('#keyNote a').getAttribute('href')) ?? '';
   expect(href).toContain(`#key=${KEY}`);
   expect(new URL(href).search).toBe('');
 
   // Same-document navigation: nothing reloads, so this only works if the
   // fragment is also consumed on hashchange.
-  page.on('dialog', (d) => d.accept());
+  page.on('dialog', (d) => void d.accept());
   await page.goto(href);
   await expect(page.locator('#key')).toHaveValue(KEY);
   expect(page.url()).not.toContain(KEY);
@@ -802,14 +819,15 @@ test('bookmark link carries the key in the fragment, never the query string', as
 
 test('a key in the fragment is never taken without asking', async ({ page }) => {
   await unlock(page);
-  page.on('dialog', (d) => d.dismiss());
+  page.on('dialog', (d) => void d.dismiss());
 
   // Any page anywhere can link here. Accepting silently would replace the
   // stored key and bill this tab to a stranger's account.
   await page.goto('#key=pm-someone-elses-key');
 
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hc.apiKey')));
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('hc.apiKey') ?? 'null'));
   expect(stored).toBe(KEY);
   // Declined or not, the key does not stay in the address bar.
   expect(page.url()).not.toContain('someone-elses');
 });
+

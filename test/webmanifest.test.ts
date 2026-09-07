@@ -8,11 +8,25 @@ import { describe, expect, it } from 'vitest';
  * be caught any other way — the share target's URL, and the form field name the
  * worker reads out of the POST.
  */
-const read = (p) => readFileSync(new URL(`../public/${p}`, import.meta.url), 'utf8');
+const read = (p: string): string => readFileSync(new URL(`../public/${p}`, import.meta.url), 'utf8');
 
-const manifest = JSON.parse(read('manifest.webmanifest'));
+/** Only the fields these tests read; the manifest carries more. */
+interface WebManifest {
+  start_url: string;
+  scope: string;
+  share_target: {
+    action: string;
+    method: string;
+    enctype: string;
+    params: { files: { name: string; accept: string[] }[] };
+  };
+}
+
+const manifest = JSON.parse(read('manifest.webmanifest')) as WebManifest;
 const sw = read('sw.js');
 const share = manifest.share_target;
+const files = share.params.files[0];
+if (!files) throw new Error('share_target declares no file parameter');
 
 describe('share target declaration', () => {
   it('posts a multipart form, which is the only shape that can carry a file', () => {
@@ -24,11 +38,11 @@ describe('share target declaration', () => {
     // .mp4/.webm/.ogg are shared with a video/* type even when they hold audio
     // only, and the gate takes them, so refusing them here would hide the app
     // from the share sheet for files it can actually transcribe.
-    expect(share.params.files[0].accept).toEqual(['audio/*', 'video/*']);
+    expect(files.accept).toEqual(['audio/*', 'video/*']);
   });
 
   it('names the form field the worker actually reads', () => {
-    expect(sw).toContain(`getAll('${share.params.files[0].name}')`);
+    expect(sw).toContain(`getAll('${files.name}')`);
   });
 });
 

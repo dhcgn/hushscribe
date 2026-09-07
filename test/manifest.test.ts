@@ -1,34 +1,40 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Manifest } from 'privatemode-ai';
 import { describe, expect, it } from 'vitest';
 import {
   digestHex, measurements, policySummary, proofSummary, shortHex,
-} from '../src/manifest.js';
+} from '../src/manifest';
+import REAL from './fixtures/manifest.json';
 
 // A genuine manifest, fetched from https://cdn.confidential.cloud/privatemode/v2/manifest.json.
 // The bug this module exists to fix came from inventing the manifest's shape and
-// having a fake agree with the invention, so these tests read the real thing.
+// having a fake agree with the invention, so these tests read the real thing —
+// and the captured fixture must itself compile against the SDK's own type.
+const captured: Manifest = REAL;
 const BYTES = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'manifest.json'));
-const REAL = JSON.parse(BYTES.toString('utf8'));
+
+/** Inputs the type says cannot happen, which the code still refuses to crash on. */
+const loose = (m: unknown): Manifest => m as Manifest;
 
 describe('the real manifest', () => {
   it('has no digest field — the assumption that caused the bug', () => {
     expect('digest' in REAL).toBe(false);
-    expect(REAL.digest).toBeUndefined();
+    expect((REAL as Record<string, unknown>)['digest']).toBeUndefined();
   });
 
   it('carries exactly the three documented top-level keys', () => {
-    expect(Object.keys(REAL).sort()).toEqual(['Policies', 'ReferenceValues', 'SeedshareOwnerPubKeys']);
+    expect(Object.keys(captured).sort()).toEqual(['Policies', 'ReferenceValues', 'SeedshareOwnerPubKeys']);
   });
 });
 
 describe('measurements', () => {
   it('extracts the SNP launch measurement and its product', () => {
-    const [first] = measurements(REAL);
-    expect(first.product).toBe('Genoa');
+    const [first] = measurements(captured);
+    expect(first?.product).toBe('Genoa');
     // A SEV-SNP measurement is 48 bytes -> 96 hex characters.
-    expect(first.measurement).toMatch(/^[0-9a-f]{96}$/);
+    expect(first?.measurement).toMatch(/^[0-9a-f]{96}$/);
   });
 
   it.each([undefined, null, {}, { ReferenceValues: {} }, { ReferenceValues: { snp: [] } }])(
@@ -37,18 +43,18 @@ describe('measurements', () => {
   );
 
   it('skips entries with no measurement', () => {
-    expect(measurements({ ReferenceValues: { snp: [{ ProductName: 'Milan' }] } })).toEqual([]);
+    expect(measurements(loose({ ReferenceValues: { snp: [{ ProductName: 'Milan' }] } }))).toEqual([]);
   });
 });
 
 describe('proofSummary', () => {
   it('reads "Genoa · ea6a6655" style for a real manifest', () => {
-    const line = proofSummary(REAL, 'deadbeef');
-    expect(line).toBe(`Genoa · ${REAL.ReferenceValues.snp[0].TrustedMeasurement.slice(0, 8)}`);
+    const line = proofSummary(captured, 'deadbeef');
+    expect(line).toBe(`Genoa · ${REAL.ReferenceValues.snp[0]?.TrustedMeasurement.slice(0, 8)}`);
   });
 
   it('omits an absent product name instead of printing "undefined ·"', () => {
-    const m = { ReferenceValues: { snp: [{ TrustedMeasurement: 'abcdef0123456789' }] } };
+    const m = loose({ ReferenceValues: { snp: [{ TrustedMeasurement: 'abcdef0123456789' }] } });
     expect(proofSummary(m, null)).toBe('abcdef01');
   });
 
@@ -66,7 +72,7 @@ describe('proofSummary', () => {
 
 describe('policySummary', () => {
   it('counts the policies and names the distinct roles', () => {
-    const { count, roles } = policySummary(REAL);
+    const { count, roles } = policySummary(captured);
     expect(count).toBe(Object.keys(REAL.Policies).length);
     expect(count).toBeGreaterThan(0);
     expect(roles).toContain('coordinator');
@@ -87,7 +93,7 @@ describe('digestHex', () => {
 
   it('differs when a single byte changes', async () => {
     const tampered = Buffer.from(BYTES);
-    tampered[10] ^= 0xff;
+    tampered[10] = (tampered[10] ?? 0) ^ 0xff;
     expect(await digestHex(tampered)).not.toBe(await digestHex(BYTES));
   });
 

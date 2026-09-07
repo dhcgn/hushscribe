@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { FORMATS, MAX_BYTES, extensionOf, gate, isPlayable } from '../src/gate.js';
+import { FORMATS, MAX_BYTES, extensionOf, gate, isPlayable, type Verdict } from '../src/gate';
 
-const file = (name, size = 1024) => ({ name, size });
+const file = (name: string, size = 1024): Pick<File, 'name' | 'size'> => ({ name, size });
+
+/** Narrow to the rejected branch, or fail the test right here. */
+const rejected = (v: Verdict): Extract<Verdict, { ok: false }> => {
+  if (v.ok) throw new Error('expected the gate to reject');
+  return v;
+};
 
 describe('extensionOf', () => {
   it.each([
@@ -21,8 +27,7 @@ describe('gate', () => {
 
   // These are in test-data/ precisely because Privatemode does not accept them.
   it.each(['opus', 'mkv', 'aac', 'wma', 'txt'])('rejects .%s', (ext) => {
-    const v = gate(file(`speech.${ext}`));
-    expect(v.ok).toBe(false);
+    const v = rejected(gate(file(`speech.${ext}`)));
     expect(v.reason).toBe('format');
     expect(v.why).toContain(`.${ext}`);
   });
@@ -36,13 +41,13 @@ describe('gate', () => {
   });
 
   it('rejects one byte over 50 MB', () => {
-    const v = gate(file('a.mp3', MAX_BYTES + 1));
-    expect(v).toMatchObject({ ok: false, reason: 'size' });
+    const v = rejected(gate(file('a.mp3', MAX_BYTES + 1)));
+    expect(v.reason).toBe('size');
     expect(v.why).toMatch(/50 MB limit/);
   });
 
   it('reports the actual size so the message is actionable', () => {
-    expect(gate(file('a.mp3', 68 * 1048576)).why).toContain('68.0 MB');
+    expect(rejected(gate(file('a.mp3', 68 * 1048576))).why).toContain('68.0 MB');
   });
 
   // Zero bytes passes both other checks and fails confusingly at the API instead.
@@ -51,7 +56,7 @@ describe('gate', () => {
   });
 
   it('checks format before size, so the message names the real problem', () => {
-    expect(gate(file('huge.mkv', MAX_BYTES * 2)).reason).toBe('format');
+    expect(rejected(gate(file('huge.mkv', MAX_BYTES * 2))).reason).toBe('format');
   });
 });
 
@@ -66,9 +71,9 @@ describe('playability', () => {
     expect(isPlayable(`a.${ext}`)).toBe(true));
 
   // No isVideo(): mp4/webm/ogg are containers that may hold audio only, so the
-  // name cannot decide the element. app.js probes the file (see probeMedia).
+  // name cannot decide the element. media.ts probes the file (see probeMedia).
   it('exposes no extension-based video test', async () => {
-    const gate_ = await import('../src/gate.js');
-    expect(gate_.isVideo).toBeUndefined();
+    const exports: Record<string, unknown> = await import('../src/gate');
+    expect(exports['isVideo']).toBeUndefined();
   });
 });

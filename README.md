@@ -121,8 +121,9 @@ Then open the page, paste a [Privatemode API key](https://portal.privatemode.ai)
 | `npm run dev` | Vite dev server on :5173 |
 | `npm run build` | Static build into `dist/` |
 | `npm run preview` | Serve `dist/` on :4173, exactly as Pages will |
-| `npm test` | Unit tests, then the GUI suite |
+| `npm test` | Type check, unit tests, then the GUI suite |
 | `npm run test:unit` | Vitest — pure logic, no browser, fast |
+| `npm run typecheck` | TypeScript 7 `tsc` over both projects: `src/`, then configs and tests |
 | `npm run coverage` | Vitest with coverage, and fails below the thresholds |
 | `npm run test:e2e` | Playwright against the real production bundle |
 | `npm run test:ui` | Playwright's UI mode, for debugging a failing test |
@@ -131,8 +132,8 @@ Then open the page, paste a [Privatemode API key](https://portal.privatemode.ai)
 No test needs an API key except `test:smoke`. The GUI suite injects a stand-in client at
 the single seam production code exposes, so no mock code ever ships.
 
-**The coverage badge counts the four pure modules only** — `gate`, `segments`, `pricing`,
-`manifest`. `app.js` is DOM wiring, covered by Playwright against the real built bundle
+**The coverage badge counts the seven pure modules only** — `gate`, `segments`, `pricing`,
+`manifest`, `storage`, `session`, `share`. The rest is DOM wiring, covered by Playwright against the real built bundle
 rather than by Vitest, so measuring it here would report a number about the tool rather than
 the code. Hence *unit* coverage, and this is what it means. CI enforces the thresholds on
 every push, so the figure cannot quietly rot.
@@ -288,7 +289,7 @@ Or Settings → Pages → Source: Deploy from a branch → `gh-pages` / `/`. The
 is created by the first deploy.
 
 `BASE_PATH` defaults to `/hushscribe/` for a project site — set it to `/` for a custom
-domain, and keep it in step with `base` in `vite.config.js`. The workflow overrides it per
+domain, and keep it in step with `base` in `vite.config.ts`. The workflow overrides it per
 deploy, one level deeper for a preview.
 
 ## Verifying the claim

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeIndex, clock, promptBudget, stamp, toSRT, toTXT, toVTT,
-} from '../src/segments.js';
+} from '../src/segments';
+import type { Segment } from '../src/types';
 
-const segs = [
+const segs: Segment[] = [
   { start: 0, end: 2.5, text: 'Right, let us start.' },
   { start: 2.5, end: 5, text: '  The short version.  ' },
   { start: 5, end: 3723.456, text: 'And the long one.' },
@@ -90,4 +91,3 @@ describe('promptBudget', () => {
 
   it('treats an absent prompt as empty', () => expect(promptBudget(undefined).n).toBe(0));
 });
-
