@@ -13,3 +13,6 @@ test-results/
 
 # Vitest coverage output
 coverage/
+
+# Claude Code skills: junction into .agents/skills (created locally, not portable)
+.claude/skills/
