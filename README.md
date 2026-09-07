@@ -228,10 +228,22 @@ same `localStorage`. It is a shortcut and a window, not a different program.
   </tr>
 </table>
 
+**Share straight into it — Android.** Once installed, hushscribe appears in the system share
+sheet for audio and video. Record an interview in your voice recorder, tap *Share*, pick
+hushscribe, and the file lands in the dropzone and starts transcribing — no file picker, no
+detour through Downloads. Chrome on Android is where this works; desktop browsers vary and
+iOS has no share target at all, so there it simply does not appear.
+
+Even then the file is never written down. Android hands it to the service worker, which
+passes it to the page in memory and forgets it — the same rule as everywhere else in the app.
+The rare cost of that is honest: if the worker is restarted in between, the file is lost and
+the page tells you to share it again rather than pretending nothing happened.
+
 The service worker **caches nothing, deliberately**. hushscribe cannot work offline — every
 transcription needs the API — so a cache would buy nothing, while a stale one could pin an
 old bundle. That bundle carries the attestation verifier and its pinned hash, so a fix must
-reach every client on the next load.
+reach every client on the next load. It answers exactly one request, the share above, because
+there is no server for Android to send it to; everything else goes to the network untouched.
 
 ## What is stored
 

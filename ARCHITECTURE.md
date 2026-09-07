@@ -581,6 +581,56 @@ The security explanations get the same treatment — "sealed machine", "scramble
 device" — while §1's precise wording stays in the proof row's expanded detail for readers who
 want it. Both are true; they are pitched at different readers.
 
+### 5.6 Shared from the phone's share sheet
+
+Recording an interview on a phone and transcribing it on the same phone is the path §5's
+mobile layout exists for, and until now it ended in a file picker: leave the recorder, open
+hushscribe, find the file. An installed PWA can be a **share target** instead, so the recorder
+hands the file over directly.
+
+The declaration is four lines of `manifest.webmanifest`:
+
+```json
+"share_target": {
+  "action": "./share-target",
+  "method": "POST",
+  "enctype": "multipart/form-data",
+  "params": { "files": [{ "name": "media", "accept": ["audio/*", "video/*"] }] }
+}
+```
+
+Android then delivers a shared file by POSTing a multipart form to that action. **There is no
+server to receive it** and there never will be (§1.2), so `public/sw.js` receives it: the
+service worker is the only code in this product that can answer a request. It is the same
+worker that exists for installability, and it still caches nothing — it now answers exactly
+one URL, and every other request falls through to the network as before.
+
+Three decisions inside that are not the obvious ones.
+
+**The file is never written down.** Every recipe for this — including `web.dev`'s — stores the
+share in the Cache API or IndexedDB and reads it back on the landing page. That would make
+hushscribe the one thing it has never been: an app with your audio on disk. The worker holds
+the file in a plain variable and hands it to the page over a `MessagePort`, which keeps the
+asymmetry §7 is built on — *transcripts persist, media never does* — intact for shared files
+too. The cost is a real failure mode: a worker terminated between the share and the page load
+loses the file. That is why the landing page says so rather than opening an empty dropzone,
+and why it is worth saying out loud that this is a trade, not a free win.
+
+**Every URL is relative.** `"/share-target"` is what the examples show, and it is wrong here
+twice over: the site is served from `/hushscribe/`, and each PR preview from
+`/hushscribe/pr/<n>/` (§8.1). An action outside the manifest's scope is dropped by the
+browser without an error anyone will see, so the worker derives both the path it answers and
+the URL it redirects to from `registration.scope`, and `test/webmanifest.test.js` resolves
+every manifest URL against a preview base to keep it that way.
+
+**The response is a 303 redirect**, to `./?shared=1` — not a rendered page. A POST left in the
+session history re-submits the shared file on every back-button press. The page consumes the
+marker with `history.replaceState` for the same reason, then treats the file exactly as a
+dropped one: same `take()`, same gate, same attestation-on-demand.
+
+Support is Android/Chrome, which is where the use case lives. Desktop browsers vary and iOS
+has none; sharing to hushscribe there simply does not appear, and the dropzone is unchanged.
+
 ---
 
 ## 6. Testing
@@ -1118,6 +1168,8 @@ a two-hour recording.**
 | ffmpeg lazy-loaded | ~30 MB most users will never need. |
 | Two re-encode attempts, then stop | Past 64 kbit/s the duration limit binds, not the size limit. |
 | Ship Stage 1 before Stage 2 | Stage 1 is a working product; Stage 2 widens the input set. |
+| Share target answered by the service worker | Android POSTs the shared file. There is no server to POST to, and the worker is the only thing that can answer (§5.6). |
+| Shared file relayed in memory, not cached | Storing it would be the one thing this app never does with media. A lost file is rare and reported; a stored one is a broken promise. |
 
 ---
 
@@ -1132,3 +1184,6 @@ a two-hour recording.**
 - [Speech-to-text API reference](https://docs.privatemode.ai/reference/speech-to-text/) — which fields are actually required, and the `verbose_json` ↔ `language` coupling
 - [Models](https://docs.privatemode.ai/models/overview) — `whisper-large-v3`, `voxtral-mini-3b`
 - [Remote attestation](https://docs.privatemode.ai/security/attestation/overview) — the manifest and evidence
+
+- [`share_target` manifest member](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/share_target) — the declaration, and what Android does with it
+- [Receiving shared data with a service worker](https://web.dev/articles/workbox-share-targets) — the standard recipe, which caches the file; §5.6 says why this one does not

@@ -686,20 +686,71 @@ test.describe('installable app', () => {
     }
   });
 
-  test('registers a service worker that caches nothing', async ({ page }) => {
+  test('registers a service worker that stores nothing', async ({ page }) => {
     await expect
       .poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())),
         { timeout: 10_000 })
       .toBe(true);
 
-    // The whole point: no stale bundle can ever be served (see public/sw.js).
-    // Comments are stripped first — the file explains at length that it does not
-    // call respondWith, and matching that prose would be matching the wrong thing.
+    // The whole point: no stale bundle can ever be served, and no shared media is
+    // ever written down (see public/sw.js). Comments are stripped first — the file
+    // explains both at length, and matching that prose would match the wrong thing.
     const raw = await (await page.request.get(new URL('sw.js', page.url()).href)).text();
     const code = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     expect(code).not.toMatch(/caches\s*\./);
-    expect(code).not.toMatch(/respondWith/);
+    expect(code).not.toMatch(/indexedDB/);
     expect(code).toMatch(/addEventListener\(\s*'fetch'/);
+    // Exactly one response, and only for the share target's POST. Every other
+    // request must fall through to the network untouched.
+    expect(code.match(/respondWith/g)).toHaveLength(1);
+    expect(code).toMatch(/method !== 'POST'/);
+  });
+});
+
+test.describe('android share target', () => {
+  /* The share sheet POSTs a multipart form to ./share-target, which sw.js answers
+     because there is no server that could. Driving that POST from the page is as
+     close to the real thing as a desktop browser gets: same worker, same request,
+     same redirect. */
+  async function controlled(page) {
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+      if (navigator.serviceWorker.controller) return;
+      await new Promise((done) => {
+        navigator.serviceWorker.addEventListener('controllerchange', done, { once: true });
+      });
+    });
+  }
+
+  const share = (page, filename) => page.evaluate(async (name) => {
+    const body = new FormData();
+    body.append('media', new File([new Uint8Array(2048)], name, { type: 'audio/wav' }));
+    return (await fetch('share-target', { method: 'POST', body })).url;
+  }, filename);
+
+  test('a shared file is transcribed as if it had been dropped', async ({ page }) => {
+    await unlock(page);
+    await controlled(page);
+
+    // The worker redirects rather than answering with a page: a POST left in
+    // history would re-share the file on every back-button press.
+    expect(await share(page, 'shared.wav')).toContain('?shared=1');
+
+    await page.goto('./?shared=1');
+    await expect(page.locator('.card-name')).toHaveText('shared.wav');
+    await expect(page.locator('.card .seg')).toHaveCount(LINES.length);
+    // The marker is spent; reloading must not replay it.
+    expect(page.url()).not.toContain('shared');
+  });
+
+  test('says so when the worker no longer holds the file', async ({ page }) => {
+    await unlock(page);
+    await controlled(page);
+
+    // Nothing was shared, which is what a worker restarted between the share and
+    // this load looks like from here. Silence would read as the wrong app opening.
+    await page.goto('./?shared=1');
+    await expect(page.locator('.card.bad')).toContainText('did not reach the page');
   });
 });
 
