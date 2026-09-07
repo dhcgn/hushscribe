@@ -22,7 +22,9 @@ describe('collectShared', () => {
   });
 
   it('hands back the files the worker was holding', async () => {
-    const shared = [new File(['abc'], 'clip.webm', { type: 'video/webm' })];
+    // A plain object, not a File: Node 22 structured-clones a File into a nameless
+    // Blob, Node 24 keeps the name. The relay is what is under test, not the clone.
+    const shared = [{ name: 'clip.webm' } as File];
     const worker = fakeWorker((port) => { port.postMessage(shared); port.close(); });
     const files = await collectShared(worker);
     expect(files.map((f) => f.name)).toEqual(['clip.webm']);
