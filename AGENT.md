@@ -76,9 +76,11 @@ Breaking any of these breaks the product's entire claim. They are not style pref
 4. **No dev key in a build.** `__DEV_API_KEY__` is `''` for every build; CI greps `dist/`
    for key-shaped strings and fails. A public Pages bundle is public to everyone.
 5. **No backend.** Ever. A server that touches the audio voids the claim.
-6. **The service worker caches nothing.** `public/sw.js` exists for installability only. A
-   cache could pin an old bundle — and the bundle carries the attestation verifier plus its
-   pinned hash. The app needs the network anyway.
+6. **The service worker caches nothing.** A cache could pin an old bundle — and the bundle
+   carries the attestation verifier plus its pinned hash. The app needs the network anyway.
+   `public/sw.js` answers exactly one URL, the share target's POST (§5.6), and relays that
+   file to the page in memory. Everything else falls through to the network, and nothing is
+   ever written to Cache or IndexedDB — including shared media.
 7. **CSP has no `'unsafe-inline'`.** Never widen it to silence an error.
 8. **Never overstate.** The UI states what is *not* covered (metadata, browser trust,
    `dangerouslyAllowBrowser`). Honesty is what makes the rest credible.
@@ -104,6 +106,7 @@ Each of these cost real debugging time here. Don't rediscover them.
 | `gh` with no checkout | A cleanup job that skips `actions/checkout` has no git repo, so `gh` cannot infer the repository: `fatal: not a git repository`. Set `GH_REPO`. |
 | `${{ }}` over two lines | A wrapped expression containing a URL parses as a YAML mapping (`https:`) and the workflow will not load. One line, or build the string in the shell. |
 | Git Bash on Windows | MSYS rewrites `!/path` args into `C:/Program Files/Git/...`. Use `MSYS_NO_PATHCONV=1` when verifying sparse-checkout patterns. |
+| `share_target.action` | Root-absolute `/share-target` is what every example shows and is **wrong here**: the site lives at `/hushscribe/` and previews at `/hushscribe/pr/<n>/`. Outside scope, the browser drops the share target silently. Derive from `registration.scope`. |
 | `python .replace()` edits | Fail **silently** on no-match. Assert the match, or use the Edit tool. |
 
 ## Design stance
@@ -123,7 +126,10 @@ the usual inline anti-flash script.
 
 Deliberate asymmetry worth preserving: **transcripts persist, media never does.** History has
 no player and no Redo because the file was never stored — Redo lives on the result card,
-where the `File` is in scope. Don't "fix" that by caching media.
+where the `File` is in scope. Don't "fix" that by caching media. That holds for a file
+arriving from the Android share sheet too: `sw.js` relays it to the page in memory and it
+re-enters through the same `take()` as a dropped one (§5.6). A worker restarted in between
+loses it, and the page says so — that is the trade, not a bug to fix with a cache.
 
 ## Where things stand
 

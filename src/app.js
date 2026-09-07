@@ -388,6 +388,41 @@ async function take(files) {
   return queue.reduce((p, f) => p.then(() => transcribe(f)), Promise.resolve());
 }
 
+/* An Android share arrives as a POST that sw.js answers, so by the time this
+   page loads the file is sitting in the worker's memory and nowhere else — media
+   still never touches disk. Collect it over a MessagePort (§5.6). */
+function collectShared() {
+  const worker = navigator.serviceWorker?.controller;
+  if (!worker) return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (e) => resolve(e.data ?? []);
+    worker.postMessage('take-shared', [channel.port2]);
+    // A worker terminated between the share and this load has nothing to answer
+    // with, and would leave the page waiting on a reply that never comes.
+    setTimeout(() => resolve([]), 3000);
+  });
+}
+
+async function takeShared() {
+  if (!new URLSearchParams(location.search).has('shared')) return;
+  // Drop the marker first, whatever happens below: a reload must not announce a
+  // second time that a file went missing.
+  history.replaceState(null, '', location.pathname);
+
+  const files = await collectShared();
+  if (files.length) return take(files);
+
+  // Losing the file is rare and never silent. Saying nothing at all would look
+  // exactly like a share sheet that had picked the wrong app.
+  const card = el('article', { className: 'card bad' });
+  card.append(el('p', {
+    className: 'note warn',
+    textContent: 'The shared file did not reach the page. Share it again, or drop it here.',
+  }));
+  $('results').prepend(card);
+}
+
 /* Comfortable (default) or compact. public/view-init.js applies the saved value
    before first paint; this only keeps the button and the attribute in step. */
 /* Compact hides the key field once a key is stored — but never while it is
@@ -653,4 +688,8 @@ renderPrompts(); renderData(); renderHistory(); renderCount(); renderRate();
    Attestation is a handshake, not an inference request, so it costs nothing but
    a round trip — though it does mean opening the page contacts the provider
    (ARCHITECTURE.md §1.3). A failure just surfaces the error and shows the field. */
-if ($('key').value.trim()) verify();
+const attested = $('key').value.trim() ? verify() : Promise.resolve();
+
+/* Only then go looking for a shared file. take() attests on demand, so starting
+   it before the handshake above resolves would run a second one alongside it. */
+attested.then(takeShared);
