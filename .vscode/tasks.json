@@ -54,6 +54,35 @@
       "group": { "kind": "test", "isDefault": true },
       "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
       "problemMatcher": []
+    },
+    {
+      "label": "Test: coverage",
+      "detail": "vitest run --coverage — the same CI gate: fails below 95/90/95/95; HTML report in coverage/index.html",
+      "type": "npm",
+      "script": "coverage",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: coverage report in browser",
+      "detail": "Runs Test: coverage, then serves coverage/ on :8788 — the dev container opens that port in the Simple Browser",
+      "type": "shell",
+      // The Simple Browser shows http(s) only, never file://, so the report is
+      // served. Vite is already installed; --base / puts index.html at the root.
+      // Opening happens through devcontainer.json portsAttributes (openPreview)
+      // the moment the port starts listening, so no ordering trick is needed.
+      // Close this terminal to stop the server.
+      "command": "npx vite preview --outDir coverage --base / --port 8788 --strictPort",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Test: coverage"],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "web" },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "vite", "endsPattern": "Local:\\s+http" }
+      }
     }
   ]
 }

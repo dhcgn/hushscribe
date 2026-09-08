@@ -49,7 +49,10 @@
   "forwardPorts": [5173, 4173],
   "portsAttributes": {
     "5173": { "label": "vite dev" },
-    "4173": { "label": "vite preview (e2e)" }
+    "4173": { "label": "vite preview (e2e)" },
+    // Served by the "Test: coverage report in browser" task; opens in VS Code's
+    // Simple Browser as soon as the port is listening.
+    "8788": { "label": "coverage report", "onAutoForward": "openPreview" }
   },
 
   "customizations": {
