@@ -1,6 +1,8 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import type { Page } from '@playwright/test';
+import type { Manifest } from 'privatemode-ai';
+// Type-only, so nothing from src/ runs in Node. It also brings the
+// `globalThis.__HC_CLIENT` declaration into scope for the injected script.
+import type { TranscriptionClient } from '../../src/client';
 
 /**
  * The manifest shape, taken from the real one at
@@ -10,7 +12,8 @@ import { fileURLToPath } from 'node:url';
  * An earlier version of this file invented `{ digest }`. Production code was
  * written to match the invention, both agreed, every test passed, and the live
  * page showed "✓(manifes". A fake that does not mirror the real contract tests
- * nothing but itself — so this one is derived from a captured response.
+ * nothing but itself — so this one is derived from a captured response, and
+ * `satisfies Manifest` makes an invented field a compile error.
  */
 export const MEASUREMENT =
   'ea6a66550b8b0117ba8dd0a86dcb1f9d5a4e5e6b9c1d2f3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2';
@@ -40,7 +43,7 @@ export const MANIFEST = {
     }],
   },
   SeedshareOwnerPubKeys: ['-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----'],
-};
+} satisfies Manifest;
 
 /** What the collapsed proof row should read for the manifest above. */
 export const PROOF_LINE = `Genoa · ${MEASUREMENT.slice(0, 8)}`;
@@ -53,22 +56,37 @@ export const LINES = [
   'Correct. Verify the manifest, then the handshake.',
 ];
 
+type Failure = 'verify' | 'transcribe';
+
+export interface FakeOptions {
+  manifest?: Manifest;
+  fail?: Failure;
+  segmentSeconds?: number;
+}
+
+/** What crosses into the page. Must be structured-cloneable: no functions. */
+interface FakeArgs {
+  manifest: Manifest;
+  lines: string[];
+  fail: Failure | null;
+  segmentSeconds: number;
+}
+
 /**
  * Installs a stand-in for the Privatemode client at the one seam production code
  * exposes (ARCHITECTURE.md §6.2). The fake lives only here, so no mock code ever
  * reaches the bundle — and no test needs an API key or has to forge ciphertext.
  *
- * @param {import('@playwright/test').Page} page
- * @param {{fail?: string, segmentSeconds?: number}} [opts]
+ * The injected function is annotated with the production seam type, so a fake
+ * that drifts from what the SDK actually exposes fails to compile.
  */
-export async function installFakeClient(page, opts = {}) {
+export async function installFakeClient(page: Page, opts: FakeOptions = {}): Promise<void> {
   await page.addInitScript(
-    ({ manifest, lines, fail, segmentSeconds }) => {
+    ({ manifest, lines, fail, segmentSeconds }: FakeArgs) => {
       // The SDK exposes the manifest both parsed and as the raw bytes it verified.
       // Production hashes the bytes, so the fake must supply them too.
       const bytes = new TextEncoder().encode(JSON.stringify(manifest));
-      globalThis.__HC_CLIENT = () => ({
-        manifest,
+      globalThis.__HC_CLIENT = (): TranscriptionClient => ({
         manifestBytes: bytes,
         async verify() {
           if (fail === 'verify') throw new Error('attestation rejected');
@@ -103,57 +121,3 @@ export async function installFakeClient(page, opts = {}) {
     },
   );
 }
-
-/**
- * A real, playable WAV written to disk so tests can drive the actual file input.
- * Generated rather than committed: test-data/ holds ~84 MB of real speech for
- * smoke runs, and the GUI suite must stay cheap enough to run on every push.
- */
-export function makeWav(name = 'board-meeting.wav', seconds = 12) {
-  const rate = 8000;
-  const frames = rate * seconds;
-  const buf = Buffer.alloc(44 + frames * 2);
-  buf.write('RIFF', 0);
-  buf.writeUInt32LE(36 + frames * 2, 4);
-  buf.write('WAVEfmt ', 8);
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(1, 22);
-  buf.writeUInt32LE(rate, 24);
-  buf.writeUInt32LE(rate * 2, 28);
-  buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34);
-  buf.write('data', 36);
-  buf.writeUInt32LE(frames * 2, 40);
-  for (let i = 0; i < frames; i++) buf.writeInt16LE(Math.round(Math.sin(i / 12) * 8000), 44 + i * 2);
-
-  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'test-results', 'fixtures');
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, name);
-  writeFileSync(path, buf);
-  return path;
-}
-
-/** A file the gate must reject: .opus is not in Privatemode's supported list. */
-export function makeUnsupported(name = 'interview.opus') {
-  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'test-results', 'fixtures');
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, name);
-  writeFileSync(path, Buffer.alloc(2048));
-  return path;
-}
-
-/** Accepted by the gate but undecodable, so no duration and no honest price. */
-export function makeUndecodable(name = 'garbled.mp3') {
-  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'test-results', 'fixtures');
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, name);
-  writeFileSync(path, Buffer.from('not actually audio, just bytes with an .mp3 name'));
-  return path;
-}
-
-/** Real webm fixtures: one audio-only, one with a video track. Committed rather
- *  than generated, because the bug they guard against is only reachable with a
- *  genuine container — an extension cannot tell you what is inside one. */
-export const webm = (which) =>
-  join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${which}.webm`);

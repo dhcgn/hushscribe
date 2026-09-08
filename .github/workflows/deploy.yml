@@ -75,6 +75,9 @@ jobs:
 
       # Gate the release on the tests, so a tag can never publish a broken page.
       # Previews skip it: ci.yml already runs the same command on the same commit.
+      - run: npm run typecheck
+        if: github.event_name != 'pull_request'
+
       - run: npm run coverage
         if: github.event_name != 'pull_request'
 

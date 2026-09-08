@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { loadEnv, type Plugin } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 /**
  * Every host the page is allowed to talk to. Extracted from the SDK's Wasm
@@ -35,7 +36,7 @@ const CSP = [
  * by subpath. This plugin reads it from disk instead, serves it in dev, emits it
  * at a stable path in the build, and pins its SHA-256 for `expectedWasmHash`.
  */
-function privatemodeWasm() {
+function privatemodeWasm(): Plugin {
   const path = fileURLToPath(
     new URL('node_modules/privatemode-ai/dist/privatemode.wasm', import.meta.url),
   );
@@ -47,7 +48,7 @@ function privatemodeWasm() {
     config: () => ({ define: { __WASM_SHA256__: JSON.stringify(sha256) } }),
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (!req.url?.split('?')[0].endsWith('/privatemode.wasm')) return next();
+        if (!req.url?.split('?')[0]?.endsWith('/privatemode.wasm')) return next();
         res.setHeader('Content-Type', 'application/wasm');
         res.end(bytes);
       });
@@ -66,7 +67,7 @@ function privatemodeWasm() {
  * Build only: Vite's dev server injects inline scripts and a HMR websocket, and
  * loosening the policy to accommodate dev would mean shipping the loose version.
  */
-function cspMeta() {
+function cspMeta(): Plugin {
   return {
     name: 'csp-meta',
     apply: 'build',
@@ -103,22 +104,29 @@ export default defineConfig(({ command }) => {
       ),
     },
     build: { target: 'es2022', sourcemap: true },
-    server: { port: 5173 },
-    preview: { port: 4173 },
+    /* Bind to localhost unless told otherwise. The dev container sets
+       VITE_DEV_HOST=0.0.0.0 (its "all interfaces" is only the Docker network,
+       which the port forwarder needs). Never widen this on a real machine: the
+       dev server prefills the API key from .env into the page. */
+    server: { port: 5173, host: process.env.VITE_DEV_HOST ?? 'localhost' },
+    preview: { port: 4173, host: process.env.VITE_DEV_HOST ?? 'localhost' },
     test: {
-      include: ['test/*.test.js'], // test/e2e/ belongs to Playwright
+      include: ['test/*.test.ts'], // test/e2e/ belongs to Playwright
       environment: 'node',
       coverage: {
         provider: 'v8',
         reporter: ['text-summary', 'json-summary', 'html'],
         reportsDirectory: 'coverage',
-        /* Only the modules Vitest can actually reach. app.js is DOM wiring
-           exercised by Playwright against the real bundle, and measuring it here
-           would report a number that says more about the tool than the code.
-           Including it at 0% would be just as misleading in the other direction,
-           so the badge is labelled "unit coverage" and this list is what it means.
-           See ARCHITECTURE.md §6.5. */
-        include: ['src/gate.js', 'src/segments.js', 'src/pricing.js', 'src/manifest.js'],
+        /* Only the modules Vitest can actually reach: the pure ones. The DOM
+           modules are exercised by Playwright against the real bundle, and
+           measuring them here would report a number that says more about the
+           tool than the code. Including them at 0% would be just as misleading
+           in the other direction, so the badge is labelled "unit coverage" and
+           this list is what it means. See ARCHITECTURE.md §6.4. */
+        include: [
+          'src/gate.ts', 'src/segments.ts', 'src/pricing.ts', 'src/manifest.ts',
+          'src/storage.ts', 'src/session.ts', 'src/share.ts',
+        ],
         thresholds: { statements: 95, branches: 90, functions: 95, lines: 95 },
       },
     },

@@ -33,6 +33,11 @@ jobs:
 
       - run: npm ci
 
+      # Vite strips types without checking them, so a build can succeed with a type
+      # error in it. tsc is the gate; the bundle stays exactly as Oxc emits it.
+      - name: Type check
+        run: npm run typecheck
+
       - name: Unit tests and coverage thresholds
         run: npm run coverage
 

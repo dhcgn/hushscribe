@@ -16,26 +16,43 @@ Live: https://dhcgn.github.io/hushscribe/ · Repo: `dhcgn/hushscribe`
 
 ```
 index.html          markup only — no inline <style>, no inline <script>
-src/app.js          all DOM wiring, client lifecycle, transcribe loop
-src/gate.js         pure: which files the API accepts, and why not
-src/segments.js     pure: VTT/SRT/text, timestamps, prompt budget
-src/pricing.js      pure: per-minute rates, cost estimates
-src/manifest.js     pure: SNP measurement + manifest hash
-public/             manifest.webmanifest, sw.js (no-cache), PWA icons
-vite.config.js      base path, wasm plugin, CSP injection, dev-key mapping
-test/*.test.js      vitest — the pure modules
+src/main.ts         boot + event wiring; the one entry index.html loads
+src/client.ts       the SDK seam: TranscriptionClient type, makeClient, __HC_CLIENT
+src/session.ts      pure: verified client, measurement stamp, refresh timer
+src/storage.ts      pure: typed hc.* keys, export shape, wipe
+src/share.ts        pure: collect a share-sheet file from sw.js over a MessagePort
+src/gate.ts         pure: which files the API accepts, and why not
+src/segments.ts     pure: VTT/SRT/text, timestamps, prompt budget
+src/pricing.ts      pure: per-minute rates, cost estimates
+src/manifest.ts     pure: SNP measurement + manifest hash
+src/proof.ts        the session instance + the attestation row UI
+src/transcribe.ts   take() → gate → probe → price → send → card → history
+src/card.ts         result-card pieces shared with history (segments, exports, copy)
+src/history.ts  src/prompts.ts  src/media.ts  src/dom.ts   DOM modules, e2e-covered
+src/types.ts        Segment, TranscriptRecord, ExportFile; src/env.d.ts: the defines
+public/             manifest.webmanifest, sw.js (no-cache), view-init.js, PWA icons — plain JS, served verbatim
+vite.config.ts      base path, wasm plugin, CSP injection, dev-key mapping, vitest config
+tsconfig.app.json   src/ (lib dom, types vite/client)   tsconfig.node.json: configs + test/
+test/*.test.ts      vitest — the seven pure modules
 test/e2e/           playwright — the real built bundle
 ```
 
-The `src/*.js` split exists for exactly one reason: **those four modules are the logic worth
-testing without a browser.** Everything else is DOM wiring Playwright covers. Don't add
-layers for their own sake.
+TypeScript 7 throughout; Vite (Oxc) strips the types, `npm run typecheck` (`tsc`) checks
+them, and nothing else changes in the bundle. The `src/` split exists for exactly one reason:
+**the seven pure modules are the logic worth testing without a browser.** Everything else is
+DOM wiring Playwright covers. Don't add layers for their own sake.
+
+One rule keeps the two tsconfigs honest: **a module a Vitest test imports must not touch
+`import.meta.env` or a `__DEFINE__` global.** Those exist only in the browser project, which
+is why `main.ts` hands `browserWasmURL`/`expectedWasmHash` into `createSession` instead of
+`session.ts` reading them.
 
 ## Commands
 
 ```bash
 npm run dev        # :5173
-npm test           # unit + e2e, no API key needed
+npm test           # typecheck + unit + e2e, no API key needed
+npm run typecheck  # tsc over both projects; Vite does not check types
 npm run test:unit  # fast, no browser
 npm run test:e2e   # builds, serves dist/, drives real Chromium
 npm run test:smoke # OPT-IN. Real enclave, real money. Needs .env
@@ -72,7 +89,8 @@ Breaking any of these breaks the product's entire claim. They are not style pref
 2. **`privatemode.wasm` stays same-origin.** It *is* the attestation verifier; loading it
    from someone else's CDN makes the proof circular.
 3. **No mock or bypass code in the bundle.** Fakes live in `test/e2e/` and reach production
-   only through `globalThis.__HC_CLIENT` (one line in `app.js`).
+   only through `globalThis.__HC_CLIENT` (one line in `src/client.ts`). The fake is typed
+   against the same `TranscriptionClient` interface production uses, so it cannot drift.
 4. **No dev key in a build.** `__DEV_API_KEY__` is `''` for every build; CI greps `dist/`
    for key-shaped strings and fails. A public Pages bundle is public to everyone.
 5. **No backend.** Ever. A server that touches the audio voids the claim.
@@ -91,7 +109,9 @@ Each of these cost real debugging time here. Don't rediscover them.
 
 | Trap | Reality |
 |---|---|
-| `manifest.digest` | **Does not exist.** Use `ReferenceValues.snp[].TrustedMeasurement` (96 hex, SEV-SNP launch measurement). See `src/manifest.js`. |
+| `manifest.digest` | **Does not exist.** Use `ReferenceValues.snp[].TrustedMeasurement` (96 hex, SEV-SNP launch measurement). See `src/manifest.ts` — and the SDK's `Manifest` type, which now makes this a compile error. |
+| TS 7 `types: []` | TypeScript 7 no longer auto-includes `@types/*`. `import.meta.env` and `import './style.css'` compile only because `tsconfig.app.json` lists `vite/client`; `@types/node` is listed only in `tsconfig.node.json`. Don't merge the two. |
+| `Uint8Array<ArrayBufferLike>` | Not a `BufferSource`. `crypto.subtle.digest` refuses the SDK's `manifestBytes` type; copy with `new Uint8Array(bytes)` first. |
 | Fakes | Must mirror a **captured response**, never what the caller wants. An invented fake agreeing with invented production code shipped `✓(manifes` to users. |
 | `language` | Optional in the API, but **`verbose_json` requires it**. No language → plain text, no timestamps. Degrade, don't demand. |
 | Wrong language | Whisper doesn't fail, it **translates** — fluent prose that isn't what was said. |

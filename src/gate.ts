@@ -1,23 +1,25 @@
 // Which files the Privatemode backend will accept, and why it won't accept the rest.
-// Pure: no DOM, no network. Every branch here is table-tested in test/gate.test.js.
+// Pure: no DOM, no network. Every branch here is table-tested in test/gate.test.ts.
 
 // https://docs.privatemode.ai/reference/speech-to-text/
-export const FORMATS = ['flac', 'mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'ogg', 'wav', 'webm'];
+export const FORMATS = ['flac', 'mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'ogg', 'wav', 'webm'] as const;
 export const MAX_BYTES = 50 * 1024 * 1024;
 
-export const extensionOf = (name) => {
+export const extensionOf = (name: string): string => {
   const dot = name.lastIndexOf('.');
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
 };
 
-const mb = (bytes) => (bytes / 1048576).toFixed(1);
+const mb = (bytes: number): string => (bytes / 1048576).toFixed(1);
+const listed = (list: readonly string[], ext: string): boolean => list.includes(ext);
 
-/**
- * @returns {{ok: true} | {ok: false, reason: 'format'|'size'|'empty', why: string}}
- */
-export function gate({ name, size }) {
+export type Verdict =
+  | { ok: true }
+  | { ok: false; reason: 'format' | 'size' | 'empty'; why: string };
+
+export function gate({ name, size }: Pick<File, 'name' | 'size'>): Verdict {
   const ext = extensionOf(name);
-  if (!FORMATS.includes(ext)) {
+  if (!listed(FORMATS, ext)) {
     return {
       ok: false,
       reason: 'format',
@@ -43,7 +45,7 @@ export function gate({ name, size }) {
 //
 // There is deliberately no isVideo() here. mp4, webm and ogg are containers that
 // may hold audio only, so the extension cannot tell you whether to render <video>
-// or <audio> — app.js probes the file itself.
-const PLAYABLE = ['mp3', 'mp4', 'm4a', 'ogg', 'wav', 'webm', 'flac'];
+// or <audio> — media.ts probes the file itself.
+const PLAYABLE = ['mp3', 'mp4', 'm4a', 'ogg', 'wav', 'webm', 'flac'] as const;
 
-export const isPlayable = (name) => PLAYABLE.includes(extensionOf(name));
+export const isPlayable = (name: string): boolean => listed(PLAYABLE, extensionOf(name));

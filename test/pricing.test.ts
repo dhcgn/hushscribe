@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  RATES, estimateEur, estimateLine, formatDuration, formatEur, rateLabel,
-} from '../src/pricing.js';
+  RATES, estimateEur, estimateLine, formatDuration, formatEur, rateLabel, rateOf,
+} from '../src/pricing';
 
 describe('rates', () => {
   // https://www.privatemode.ai/pricing — Speech-to-text, September 2026.
@@ -11,7 +11,16 @@ describe('rates', () => {
   });
 
   it('is frozen, so a typo cannot quietly change what users are quoted', () => {
+    // Refused at both levels: the type is Readonly, and the object is frozen.
+    // @ts-expect-error RATES is readonly
     expect(() => { RATES['whisper-large-v3'] = 99; }).toThrow();
+  });
+
+  it('looks a rate up by name without guessing for unknown models', () => {
+    expect(rateOf('whisper-large-v3')).toBe(0.014);
+    expect(rateOf('some-future-model')).toBeUndefined();
+    // Inherited properties are not models.
+    expect(rateOf('toString')).toBeUndefined();
   });
 });
 
@@ -25,7 +34,7 @@ describe('estimateEur', () => {
   it('prices a 12-minute meeting', () =>
     expect(estimateEur(720, 'whisper-large-v3')).toBeCloseTo(0.168, 5));
 
-  it.each([0, -5, NaN, Infinity, undefined])('returns null for a duration of %s', (bad) =>
+  it.each([0, -5, NaN, Infinity, undefined, null])('returns null for a duration of %s', (bad) =>
     expect(estimateEur(bad, 'whisper-large-v3')).toBeNull());
 
   it('returns null for an unknown model rather than guessing', () =>
@@ -68,8 +77,10 @@ describe('estimateLine', () => {
   });
 
   // An estimate nobody can check is worse than no estimate.
-  it('is null when the duration could not be read', () =>
-    expect(estimateLine(NaN, 'whisper-large-v3')).toBeNull());
+  it('is null when the duration could not be read', () => {
+    expect(estimateLine(NaN, 'whisper-large-v3')).toBeNull();
+    expect(estimateLine(null, 'whisper-large-v3')).toBeNull();
+  });
 
   it('is null for an unknown model', () => expect(estimateLine(600, 'nope')).toBeNull());
 });

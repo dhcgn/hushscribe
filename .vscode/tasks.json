@@ -1,0 +1,88 @@
+{
+  // Tasks run inside the dev container whenever VS Code is attached to it, so
+  // `npm` here is the container's Node 22, not the host's. Port 5173 is
+  // forwarded by .devcontainer/devcontainer.json.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Web: dev server",
+      "detail": "vite on http://localhost:5173/hushscribe/ — prefills the key from .env if present",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "web" },
+      "problemMatcher": {
+        // Tell VS Code when the server is up, so the task can be a preLaunchTask.
+        "owner": "vite",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE v",
+          "endsPattern": "Local:\\s+http"
+        }
+      }
+    },
+    {
+      "label": "OpenCode: web UI",
+      "detail": "opencode web on http://localhost:4096 — VS Code forwards the port; open it from the Ports view or the notification",
+      "type": "shell",
+      // Loopback only: no exposure on the Docker network, and no IPv6 ambiguity
+      // for the forwarder. Runs until the terminal is closed. load-env.sh first:
+      // a task's `bash -c` reads no .bashrc, and the secrets live in .devcontainer/.env.
+      "command": ". .devcontainer/load-env.sh && opencode web --hostname 127.0.0.1 --port 4096",
+      // OpenCode keys its sessions to the directory it starts in: the workspace,
+      // not wherever the last terminal happened to be.
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "tools" },
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenCode: check env",
+      "detail": "SET/MISSING for every {env:…} in .devcontainer/opencode.jsonc — names only, exit 1 if any is missing",
+      "type": "shell",
+      "command": ". .devcontainer/load-env.sh && bash .devcontainer/check-env.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "tools", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: unit",
+      "detail": "vitest run — the seven pure modules, no browser needed",
+      "type": "npm",
+      "script": "test:unit",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: coverage",
+      "detail": "vitest run --coverage — the same CI gate: fails below 95/90/95/95; HTML report in coverage/index.html",
+      "type": "npm",
+      "script": "coverage",
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: coverage report in browser",
+      "detail": "Runs Test: coverage, then serves coverage/ on :8788 — the dev container opens that port in the Simple Browser",
+      "type": "shell",
+      // The Simple Browser shows http(s) only, never file://, so the report is
+      // served. Vite is already installed; --base / puts index.html at the root.
+      // Opening happens through devcontainer.json portsAttributes (openPreview)
+      // the moment the port starts listening, so no ordering trick is needed.
+      // Close this terminal to stop the server.
+      "command": "npx vite preview --outDir coverage --base / --port 8788 --strictPort",
+      "options": { "cwd": "${workspaceFolder}" },
+      "dependsOn": ["Test: coverage"],
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "web" },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^$" },
+        "background": { "activeOnStart": true, "beginsPattern": "vite", "endsPattern": "Local:\\s+http" }
+      }
+    }
+  ]
+}
