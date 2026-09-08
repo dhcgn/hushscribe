@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Runs on every container start. Fails loudly: a silent failure here is how a
+# broken tool setup goes unnoticed until it is needed.
+set -euo pipefail
 
 mkdir -p  ~/.config/opencode/
 cp /workspace/.devcontainer/opencode.jsonc  ~/.config/opencode/opencode.jsonc
@@ -17,7 +20,9 @@ add_bashrc_line() {
 add_bashrc_line 'export PATH="$HOME/.local/bin:$PATH"'
 add_bashrc_line '. /workspace/.devcontainer/load-env.sh'
 
-curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
+# Install once; a start with rtk already present needs no network for this.
+command -v rtk > /dev/null 2>&1 || [ -x "$HOME/.local/bin/rtk" ] ||
+    curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
 
 # `rtk init -g` writes ~/.claude/RTK.md and does not create the directory;
 # a fresh container has none, and the missing dir failed the whole step.

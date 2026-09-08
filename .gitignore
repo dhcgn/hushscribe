@@ -16,3 +16,6 @@ coverage/
 
 # Claude Code skills: junction into .agents/skills (created locally, not portable)
 .claude/skills/
+
+# devcontainer CLI log: devcontainer up ... | tee devcontainer-up.log
+devcontainer-up.log

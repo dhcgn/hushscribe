@@ -41,8 +41,12 @@
   // Rolldown, and Playwright install platform-specific binaries; one folder cannot
   // serve Windows and Linux at once, and `npm ci` in here once replaced the host's
   // Windows install with Linux binaries. post-create.sh chowns the volume first.
+  // Playwright's Chromium (~190 MB) is cached in ~/.cache/ms-playwright; the
+  // volume keeps it across rebuilds, and `playwright install` skips a browser
+  // it already has.
   "mounts": [
-    "source=hushscribe-node_modules,target=/workspace/node_modules,type=volume"
+    "source=hushscribe-node_modules,target=/workspace/node_modules,type=volume",
+    "source=hushscribe-ms-playwright,target=/home/node/.cache/ms-playwright,type=volume"
   ],
 
   // 5173: `npm run dev`. 4173: `npm run preview` / the Playwright web server.
