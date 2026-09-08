@@ -127,6 +127,7 @@ Each of these cost real debugging time here. Don't rediscover them.
 | `${{ }}` over two lines | A wrapped expression containing a URL parses as a YAML mapping (`https:`) and the workflow will not load. One line, or build the string in the shell. |
 | Git Bash on Windows | MSYS rewrites `!/path` args into `C:/Program Files/Git/...`. Use `MSYS_NO_PATHCONV=1` when verifying sparse-checkout patterns. |
 | `share_target.action` | Root-absolute `/share-target` is what every example shows and is **wrong here**: the site lives at `/hushscribe/` and previews at `/hushscribe/pr/<n>/`. Outside scope, the browser drops the share target silently. Derive from `registration.scope`. |
+| Share sheet on Brave/Firefox | **Not a manifest bug.** Android takes share targets from a WebAPK's intent filters, and only Chrome (and Samsung Internet) mints WebAPKs. Brave and Firefox install a bare shortcut, so hushscribe never appears there. Check `chrome://webapks` on the phone before touching the manifest. |
 | `python .replace()` edits | Fail **silently** on no-match. Assert the match, or use the Edit tool. |
 
 ## Design stance

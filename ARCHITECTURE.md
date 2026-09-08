@@ -646,7 +646,12 @@ session history re-submits the shared file on every back-button press. The page 
 marker with `history.replaceState` for the same reason, then treats the file exactly as a
 dropped one: same `take()`, same gate, same attestation-on-demand.
 
-Support is Android/Chrome, which is where the use case lives. Desktop browsers vary and iOS
+Support is Android/Chrome, which is where the use case lives — and it is the *installing*
+browser that decides, not the manifest. Android reads share targets from the intent filters
+of a WebAPK, the package Chrome has Google's minting server build at install time. Brave has
+no minting server and Firefox does not mint either; their *Install* creates a home-screen
+shortcut, which launches the page but registers nothing with the OS, so hushscribe never
+appears in their share sheet however correct the manifest is. Desktop browsers vary and iOS
 has none; sharing to hushscribe there simply does not appear, and the dropzone is unchanged.
 
 ---

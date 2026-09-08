@@ -232,8 +232,12 @@ same `localStorage`. It is a shortcut and a window, not a different program.
 **Share straight into it — Android.** Once installed, hushscribe appears in the system share
 sheet for audio and video. Record an interview in your voice recorder, tap *Share*, pick
 hushscribe, and the file lands in the dropzone and starts transcribing — no file picker, no
-detour through Downloads. Chrome on Android is where this works; desktop browsers vary and
-iOS has no share target at all, so there it simply does not appear.
+detour through Downloads. **Install it from Chrome for this.** Android does not read share
+targets from the web page; it reads them from the app package (a *WebAPK*) that Chrome builds
+when you install. Brave and Firefox on Android build no such package &mdash; their *Install*
+places a plain shortcut &mdash; so hushscribe opens fine from their home-screen icon but never
+appears in the share sheet. Desktop browsers vary and iOS has no share target at all, so
+there it simply does not appear either.
 
 Even then the file is never written down. Android hands it to the service worker, which
 passes it to the page in memory and forgets it — the same rule as everywhere else in the app.
