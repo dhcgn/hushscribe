@@ -346,6 +346,26 @@ limit"`) so Stage 2's value is obvious before it exists.
 This admission logic lives in `gate.ts` and is the single easiest thing in the project to
 unit-test — table-driven, no browser, no network.
 
+### Stage 1½ — relabel by container, never by name
+
+The first real-world rejection was a WhatsApp voice note: `PTT-….opus`. Not on the list by
+name — but an `.opus` file *is* an Ogg container (`OggS`), and `.ogg` is on the list. The
+bytes were fine all along; only the name was wrong.
+
+So when — and only when — the extension is not accepted, `gate()` reads the first 64 bytes
+and asks `sniffContainer()` whether they are an accepted container: `OggS`, `fLaC`,
+`RIFF…WAVE`, `ID3`, `ftyp`, or an EBML header whose DocType says `webm`. If so, the same
+`File` goes to the API as `new File([file], 'PTT-….ogg')` — nothing decoded, nothing
+re-encoded, no dependency, no plaintext anywhere new. The card, exports and history keep the
+name the user dropped, and the card carries a note saying what was sent and why (§1.6:
+never quietly).
+
+Two limits are deliberate. An accepted extension is never second-guessed, because sniffing
+is a rescue for names the API would refuse, not a lie detector. And only unambiguous
+signatures count: Matroska shares WebM's EBML magic and is *not* accepted, so the DocType
+decides; a raw MPEG frame sync matches random bytes too often to trust, so `.mpga` without an
+ID3 tag stays on its extension.
+
 ### Stage 2 — re-encode fallback
 
 Triggered only when Stage 1 would reject. Lazy `import('./reencode')`, so users who never

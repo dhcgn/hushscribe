@@ -77,4 +77,24 @@ test.describe('@smoke real enclave', () => {
     await expect(card.locator('.seg').first()).toBeVisible({ timeout: 240_000 });
     await expect(card).toContainText(/komplex/i);
   });
+
+  // The Stage 1½ claim: a .opus voice note is an Ogg file, and the enclave takes it
+  // under the .ogg name with the bytes untouched. The GUI suite can only show that
+  // the relabelled file was *sent*; whether the API *accepts* it is answered here.
+  test('transcribes a WhatsApp .opus voice note relabelled as .ogg', async ({ page }) => {
+    const file = 'de_WhatsApp PTT-20260908-WA0000.opus';
+    test.skip(!existsSync(media(file)), 'fixture missing');
+    await page.goto('.');
+    await page.getByLabel('Privatemode API key').fill(KEY);
+    await page.getByRole('button', { name: 'Verify & save' }).click();
+    await expect(page.locator('#chip')).toHaveText('sealed', { timeout: 120_000 });
+
+    await page.getByLabel('Spoken language').selectOption('de');
+    await page.locator('#picker').setInputFiles(media(file));
+
+    const card = page.locator('.card').first();
+    await expect(card).toContainText('Sent as de_WhatsApp PTT-20260908-WA0000.ogg');
+    await expect(card.locator('.seg').first()).toBeVisible({ timeout: 240_000 });
+    await expect(card).not.toHaveClass(/bad/);
+  });
 });

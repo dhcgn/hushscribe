@@ -15,6 +15,12 @@ import type { TranscriptionClient } from '../../src/client';
  * nothing but itself — so this one is derived from a captured response, and
  * `satisfies Manifest` makes an invented field a compile error.
  */
+declare global {
+  /** Test-only: the file names the fake was asked to transcribe, in order. */
+  // eslint-disable-next-line no-var
+  var __HC_SENT: string[] | undefined;
+}
+
 export const MEASUREMENT =
   'ea6a66550b8b0117ba8dd0a86dcb1f9d5a4e5e6b9c1d2f3a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2';
 
@@ -95,7 +101,9 @@ export async function installFakeClient(page: Page, opts: FakeOptions = {}): Pro
         async refreshSecret() {},
         audio: {
           transcriptions: {
-            create: async ({ response_format: format }) => {
+            create: async ({ file, response_format: format }) => {
+              // The name the API saw. A relabelled file must arrive under the new one.
+              (globalThis.__HC_SENT ??= []).push(file.name);
               if (fail === 'transcribe') throw new Error('rate limited');
               const text = lines.join(' ');
               if (format !== 'verbose_json') return { text };

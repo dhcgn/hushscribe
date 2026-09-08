@@ -129,6 +129,7 @@ Each of these cost real debugging time here. Don't rediscover them.
 | `share_target.action` | Root-absolute `/share-target` is what every example shows and is **wrong here**: the site lives at `/hushscribe/` and previews at `/hushscribe/pr/<n>/`. Outside scope, the browser drops the share target silently. Derive from `registration.scope`. |
 | Share sheet on Brave/Firefox | **Not a manifest bug.** Android takes share targets from a WebAPK's intent filters, and only Chrome (and Samsung Internet) mints WebAPKs. Brave and Firefox install a bare shortcut, so hushscribe never appears there. Check `chrome://webapks` on the phone before touching the manifest. |
 | `python .replace()` edits | Fail **silently** on no-match. Assert the match, or use the Edit tool. |
+| `.opus` | Not a format, a **name**: the bytes are an Ogg container (`OggS`), which the API accepts as `.ogg`. `gate.ts` relabels on the magic number, never on the extension. Matroska shares WebM's EBML magic and is *not* accepted — check the DocType. |
 
 ## Design stance
 
@@ -155,10 +156,13 @@ loses it, and the page says so — that is the trade, not a bug to fix with a ca
 ## Where things stand
 
 Stage 1 is done: supported formats, ≤50 MB, ≤1 h, rejected with a reason otherwise.
-**Stage 2 is next** — ffmpeg re-encode for unsupported or oversized input, lazy-loaded,
-single-threaded core (Pages sets no COOP/COEP headers). `test-data/` already holds `.opus`
-files as its test case. Splitting on silence and speaker diarization are deferred with their
-blockers recorded in ARCHITECTURE.md §9.
+Stage 1½ is done too: when the extension is not on the list, `gate.ts` sniffs the first
+bytes, and a file that is an accepted container under a different name (`.opus` and `.oga`
+are Ogg, `.weba` is WebM) goes through under the name the API knows — same bytes, and the
+card says so. That is what a WhatsApp voice note needs, and it costs no dependency.
+**Stage 2 is next** — ffmpeg re-encode for genuinely foreign codecs or oversized input,
+lazy-loaded, single-threaded core (Pages sets no COOP/COEP headers). Splitting on silence
+and speaker diarization are deferred with their blockers recorded in ARCHITECTURE.md §9.
 
 Before claiming anything works: run the tests, and for UI changes look at the real page.
 Verify rather than assert — that habit caught every bug in the table above.
