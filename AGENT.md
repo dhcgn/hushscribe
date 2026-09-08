@@ -155,14 +155,15 @@ loses it, and the page says so — that is the trade, not a bug to fix with a ca
 
 ## Where things stand
 
-Stage 1 is done: supported formats, ≤50 MB, ≤1 h, rejected with a reason otherwise.
-Stage 1½ is done too: when the extension is not on the list, `gate.ts` sniffs the first
+Media arrives three ways. Supported formats up to 50 MB go through as-is, rejected with
+a reason otherwise. When the extension is not on the list, `gate.ts` sniffs the first
 bytes, and a file that is an accepted container under a different name (`.opus` and `.oga`
 are Ogg, `.weba` is WebM) goes through under the name the API knows — same bytes, and the
 card says so. That is what a WhatsApp voice note needs, and it costs no dependency.
-**Stage 2 is next** — ffmpeg re-encode for genuinely foreign codecs or oversized input,
-lazy-loaded, single-threaded core (Pages sets no COOP/COEP headers). Splitting on silence
-and speaker diarization are deferred with their blockers recorded in ARCHITECTURE.md §9.
+Anything else is re-encoded in the browser (ffmpeg for genuinely foreign codecs or
+oversized input, lazy-loaded, single-threaded core — Pages sets no COOP/COEP headers).
+Splitting on silence and speaker diarization are deferred with their blockers recorded in
+ARCHITECTURE.md §9.
 
 Before claiming anything works: run the tests, and for UI changes look at the real page.
 Verify rather than assert — that habit caught every bug in the table above.

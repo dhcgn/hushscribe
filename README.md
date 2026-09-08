@@ -138,9 +138,10 @@ rather than by Vitest, so measuring it here would report a number about the tool
 the code. Hence *unit* coverage, and this is what it means. CI enforces the thresholds on
 every push, so the figure cannot quietly rot.
 
-`test-data/` holds ~83 MB of public-domain speeches (MLK, JFK, Eisenhower, a German talk)
-across every supported container, plus `.opus` files that must be *rejected*. Only
-`test:smoke` reads them. **CI checks out the repo without them** — a non-cone sparse
+`test-data/` holds ~85 MB of public-domain speeches (MLK, JFK, Eisenhower, a German talk)
+across every supported container, plus `.opus` files that must be *rejected* and 30 s
+foreign-container excerpts (`.mkv`, `.avi`, `.aac`, `.wma`, one with video) for the
+re-encode path. Only `test:smoke` reads them. **CI checks out the repo without them** — a non-cone sparse
 checkout paired with a blobless clone, so the bytes are never fetched on a build.
 
 ## Local development key
@@ -156,7 +157,8 @@ key-shaped string appears in `dist/` — a bundle published to GitHub Pages is p
 ## Supported input
 
 `flac` `mp3` `mp4` `mpeg` `mpga` `m4a` `ogg` `wav` `webm` — up to **50 MB** and **1 hour**
-per file. Anything else is rejected with the reason. Automatic re-encoding is stage 2.
+per file. Anything else is re-encoded in your browser first (audio track to mp3
+mono, 128 then 64 kbit/s); what still does not fit is rejected with the reason.
 
 Set a **language** to get timestamps, clickable segments, and `.vtt` / `.srt` subtitles;
 leave it on auto-detect and you get plain text. That coupling is the API's, not ours —

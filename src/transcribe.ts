@@ -3,7 +3,7 @@
 import { cardHead, exportBar, segmentList } from './card';
 import type { TranscriptionResult } from './client';
 import { $, el, messageOf, note } from './dom';
-import { SNIFF_BYTES, extensionOf, gate, isPlayable } from './gate';
+import { MAX_BYTES, SNIFF_BYTES, extensionOf, gate, isPlayable } from './gate';
 import { pushHistory } from './history';
 import { shortHex } from './manifest';
 import { ownUrl, probeMedia } from './media';
@@ -44,9 +44,9 @@ async function transcribe(dropped: File): Promise<void> {
   // The extension says what the sender called the file; the first bytes say what
   // it is. A WhatsApp voice note is `.opus` by name and an Ogg file by content,
   // and Ogg is on the list — so it goes through under the name the API knows,
-  // bytes untouched. Nothing is decoded or re-encoded here; that is stage 2.
+  // bytes untouched. Anything else the gate rejects goes to the re-encode fallback below.
   const verdict = gate(dropped, new Uint8Array(await dropped.slice(0, SNIFF_BYTES).arrayBuffer()));
-  if (!verdict.ok) {
+  if (!verdict.ok && verdict.reason === 'empty') {
     card.classList.add('bad');
     card.append(
       cardHead(dropped.name).head,
@@ -56,15 +56,40 @@ async function transcribe(dropped: File): Promise<void> {
   }
 
   // The card, the exports and history all keep the name the user knows.
-  const file = verdict.sendAs ? new File([dropped], verdict.sendAs, { type: dropped.type }) : dropped;
+  let file = verdict.ok && verdict.sendAs
+    ? new File([dropped], verdict.sendAs, { type: dropped.type })
+    : dropped;
+  let reencodedFrom: string | null = null;
   const { head, chain } = cardHead(dropped.name);
-  chain.append(el('span', { className: 'spin' }), ' transcribing');
-  card.append(head);
-  if (verdict.sendAs) {
-    card.append(el('p', {
-      className: 'note',
-      textContent: `Sent as ${verdict.sendAs}. The API does not list this extension, but the bytes are a .${extensionOf(file.name)} file, which it does. Same bytes, only the name changes.`,
-    }));
+
+  if (!verdict.ok) {
+    // Re-encode fallback. Triggered only when the gate rejects
+    // (foreign container or > 50 MB). Lazy import, so users who never need it
+    // never download ffmpeg (§4).
+    chain.append(el('span', { className: 'spin' }), ' re-encoding in your browser');
+    card.append(head);
+    const fallback = await reencodeFallback(dropped, chain);
+    if (!fallback.ok) {
+      card.classList.add('bad');
+      chain.textContent = `Failed: ${fallback.why}`;
+      card.append(el('p', { className: 'note warn', textContent: fallback.why }));
+      return;
+    }
+    file = fallback.file;
+    reencodedFrom = fallback.note;
+    chain.replaceChildren(el('span', { className: 'spin' }), ' transcribing');
+  } else {
+    chain.append(el('span', { className: 'spin' }), ' transcribing');
+    card.append(head);
+    if (verdict.sendAs) {
+      card.append(el('p', {
+        className: 'note',
+        textContent: `Sent as ${verdict.sendAs}. The API does not list this extension, but the bytes are a .${extensionOf(file.name)} file, which it does. Same bytes, only the name changes.`,
+      }));
+    }
+  }
+  if (reencodedFrom) {
+    card.append(el('p', { className: 'note', textContent: reencodedFrom }));
   }
 
   // Ask the file what it contains. .webm, .mp4 and .ogg are containers that may
@@ -185,6 +210,49 @@ function renderResult({ card, chain, media, file, lang, measurement, segments, t
     }));
   }
   card.append(segmentList(segments, media), exportBar(file.name, segments, redo));
+}
+
+type Fallback = { ok: true; file: File; note: string } | { ok: false; why: string };
+
+/**
+ * Re-encode fallback: extract the audio track and re-encode to mp3 mono, first
+ * at 128 kbit/s, then at 64 kbit/s. Two attempts cover the realistic range;
+ * past 64 kbit/s the 1-hour decode limit binds instead of the size limit, so
+ * more compression cannot help (§4). The last branch cannot be fixed by more
+ * compression — it needs splitting on silence (§9).
+ */
+async function reencodeFallback(dropped: File, chain: HTMLElement): Promise<Fallback> {
+  const base = import.meta.env.BASE_URL;
+  const coreURL = `${base}ffmpeg-core.js`;
+  const wasmURL = `${base}ffmpeg-core.wasm`;
+  let mod: typeof import('./reencode');
+  try {
+    mod = await import('./reencode');
+  } catch (e) {
+    return { ok: false, why: `Could not load the re-encoder: ${messageOf(e)}` };
+  }
+  const { reencode, REENCODE_BITRATES: bitrates } = mod;
+  for (const kbps of bitrates) {
+    let out: File;
+    try {
+      out = await reencode(dropped, kbps, coreURL, wasmURL);
+    } catch (e) {
+      return { ok: false, why: messageOf(e) };
+    }
+    if (out.size <= MAX_BYTES && out.size > 0) {
+      const mb = (out.size / 1048576).toFixed(1);
+      return {
+        ok: true,
+        file: out,
+        note: `Re-encoded in your browser to mp3 ${kbps} kbit/s mono (${mb} MB) and sent as ${out.name}. The original file never left your device; only the re-encoded audio was encrypted and sent.`,
+      };
+    }
+    chain.replaceChildren(el('span', { className: 'spin' }), ` re-encoding at 64 kbit/s`);
+  }
+  return {
+    ok: false,
+    why: 'Still over the 50 MB limit after re-encoding at 64 kbit/s. Split the recording into parts under an hour and transcribe them in order.',
+  };
 }
 
 /**

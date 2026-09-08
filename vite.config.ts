@@ -67,6 +67,53 @@ function privatemodeWasm(): Plugin {
  * Build only: Vite's dev server injects inline scripts and a HMR websocket, and
  * loosening the policy to accommodate dev would mean shipping the loose version.
  */
+/**
+ * ffmpeg.wasm single-threaded core, vendored same-origin like privatemode.wasm
+ * above — it touches plaintext audio, so it is not coming from a CDN (§4, §1.2).
+ * Only @ffmpeg/core (never @ffmpeg/core-mt): Pages sets no COOP/COEP headers,
+ * so SharedArrayBuffer is unavailable. The ESM build is required: @ffmpeg/ffmpeg
+ * spawns a module worker whose `import(coreURL)` fallback needs a default export,
+ * which the UMD build does not have.
+ *
+ * Deliberately unhashed stable names: reencode.ts builds the URLs at runtime
+ * from BASE_URL, the same idiom as browserWasmURL. Loaded lazily — fetched only
+ * when the gate rejects and re-encoding actually runs.
+ */
+function ffmpegCore(): Plugin {
+  const jsPath = fileURLToPath(
+    new URL('node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js', import.meta.url),
+  );
+  const wasmPath = fileURLToPath(
+    new URL('node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm', import.meta.url),
+  );
+  const js = readFileSync(jsPath);
+  const wasm = readFileSync(wasmPath);
+
+  return {
+    name: 'ffmpeg-core',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url?.split('?')[0];
+        if (url?.endsWith('/ffmpeg-core.js')) {
+          res.setHeader('Content-Type', 'text/javascript');
+          res.end(js);
+          return;
+        }
+        if (url?.endsWith('/ffmpeg-core.wasm')) {
+          res.setHeader('Content-Type', 'application/wasm');
+          res.end(wasm);
+          return;
+        }
+        next();
+      });
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'ffmpeg-core.js', source: js });
+      this.emitFile({ type: 'asset', fileName: 'ffmpeg-core.wasm', source: wasm });
+    },
+  };
+}
+
 function cspMeta(): Plugin {
   return {
     name: 'csp-meta',
@@ -91,7 +138,7 @@ export default defineConfig(({ command }) => {
     // wrong is the classic "blank page on Pages, fine locally" bug, so the e2e
     // suite runs against `vite preview` with the same base.
     base: process.env.BASE_PATH ?? '/hushscribe/',
-    plugins: [privatemodeWasm(), cspMeta()],
+    plugins: [privatemodeWasm(), ffmpegCore(), cspMeta()],
     /* Which build this is. Only a tag push sets APP_VERSION, so anything else —
        a local build, a PR preview — says so plainly instead of claiming a
        version it does not have. APP_VERSION_URL is where the footer link goes:

@@ -139,13 +139,16 @@ test.describe('transcription', () => {
     await expect(card).toContainText('Set a language to get timestamps');
   });
 
-  test('rejects an unsupported format, without calling the API', async ({ page }) => {
+  // A genuinely foreign container is re-encoded in the browser first.
+  // These bytes are a Matroska header plus zeros — not decodable media — so
+  // ffmpeg fails and the card says so, still without ever calling the API.
+  test('tries to re-encode an unsupported format, and fails loudly when it cannot', async ({ page }) => {
     await unlock(page);
     await page.locator('#picker').setInputFiles(mkv);
 
     const card = page.locator('.card').first();
-    await expect(card).toHaveClass(/bad/);
-    await expect(card).toContainText('.mkv is not a supported format');
+    await expect(card).toHaveClass(/bad/, { timeout: 60000 });
+    await expect(card).toContainText('Could not re-encode', { timeout: 60000 });
     await expect(card.locator('.seg')).toHaveCount(0);
     expect(await page.evaluate(() => globalThis.__HC_SENT ?? [])).toEqual([]);
   });

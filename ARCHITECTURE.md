@@ -122,7 +122,7 @@ dressing up as protection.
 flowchart LR
     subgraph browser["Browser tab — the only place plaintext exists"]
         UI["index.html + main.ts<br/>drop, form, player, results"]
-        RE["reencode.ts<br/>ffmpeg.wasm (lazy, Stage 2)"]
+        RE["reencode.ts<br/>ffmpeg.wasm (lazy)"]
         SDK["privatemode-ai SDK<br/>+ privatemode.wasm"]
         LS[("localStorage<br/>hc.* — key · prompts · lang · transcripts")]
         UI --> RE --> SDK
@@ -171,7 +171,7 @@ src/card.ts                 # result-card pieces shared with history
 src/history.ts  src/prompts.ts  src/media.ts  src/dom.ts       # DOM modules
 src/types.ts  src/env.d.ts  # shared domain types; the build-time defines
 src/style.css               # all styles; hashed and minified by Vite
-src/reencode.ts             # stage 2 — dynamic import(), pulls in ffmpeg.wasm
+src/reencode.ts             # re-encode fallback — dynamic import(), pulls in ffmpeg.wasm
 
 tsconfig.json               # solution file → tsconfig.app.json (src/) + tsconfig.node.json (configs, test/)
 vite.config.ts              # base path, wasm plugin, CSP injection, dev-key mapping, vitest
@@ -322,7 +322,7 @@ on a 20-file batch.
 
 ---
 
-## 4. Media handling — staged
+## 4. Media handling
 
 ### Backend constraints (hard, from Privatemode)
 
@@ -332,21 +332,20 @@ on a 20-file batch.
 | Max size | **50 MB** per request |
 | Max duration | **1 hour** of decoded audio per request |
 
-### Stage 1 — pass-through only
+### Pass-through
 
 ```
 accept if  extension ∈ supported  AND  size ≤ 50 MB
 else       reject with a specific reason
 ```
 
-No transcoding, no ffmpeg in the bundle. A working app in a fraction of the code. Rejection
-messages name the actual problem (`".mkv is not supported"`, `"68 MB exceeds the 50 MB
-limit"`) so Stage 2's value is obvious before it exists.
+No transcoding, no ffmpeg on this path. Rejection messages name the actual problem
+(`".mkv is not supported"`, `"68 MB exceeds the 50 MB limit"`).
 
 This admission logic lives in `gate.ts` and is the single easiest thing in the project to
 unit-test — table-driven, no browser, no network.
 
-### Stage 1½ — relabel by container, never by name
+### Relabel by container, never by name
 
 The first real-world rejection was a WhatsApp voice note: `PTT-….opus`. Not on the list by
 name — but an `.opus` file *is* an Ogg container (`OggS`), and `.ogg` is on the list. The
@@ -366,9 +365,9 @@ signatures count: Matroska shares WebM's EBML magic and is *not* accepted, so th
 decides; a raw MPEG frame sync matches random bytes too often to trust, so `.mpga` without an
 ID3 tag stays on its extension.
 
-### Stage 2 — re-encode fallback
+### Re-encode fallback
 
-Triggered only when Stage 1 would reject. Lazy `import('./reencode')`, so users who never
+Triggered only when the gate rejects. Lazy `import('./reencode')`, so users who never
 need it never download ffmpeg.
 
 ```mermaid
@@ -1003,7 +1002,7 @@ npm run build      # vite build → dist/, fully static
 
 Vite exists for one reason: the SDK is ESM with a peer dependency and a Wasm sidecar, and we
 refuse to resolve any of that over a CDN at runtime (§1.2). The build copies
-`privatemode.wasm` (and, from Stage 2, the ffmpeg core) into `dist/` and records the Wasm
+`privatemode.wasm` and the ffmpeg core into `dist/` and records the Wasm
 SHA-256 for `expectedWasmHash`.
 
 ### 8.1 Hosting: GitHub Pages, free
@@ -1188,7 +1187,7 @@ transcription of each chunk, per-chunk timestamp offsets folded back into one se
 and the tail of chunk *n*'s transcript passed as the `prompt` of chunk *n+1* to carry names
 and sentence flow across boundaries.
 
-Real work, for a case Stage 2 already reports clearly. **Build it when someone actually drops
+Real work, for a case the re-encode fallback already reports clearly. **Build it when someone actually drops
 a two-hour recording.**
 
 ---
@@ -1228,7 +1227,7 @@ a two-hour recording.**
 | Sequential transcription | Honest progress, no rate-limit games, less code. |
 | ffmpeg lazy-loaded | ~30 MB most users will never need. |
 | Two re-encode attempts, then stop | Past 64 kbit/s the duration limit binds, not the size limit. |
-| Ship Stage 1 before Stage 2 | Stage 1 is a working product; Stage 2 widens the input set. |
+| Pass-through first, re-encode second | A working product first; re-encoding widens the input set. |
 | Share target answered by the service worker | Android POSTs the shared file. There is no server to POST to, and the worker is the only thing that can answer (§5.6). |
 | Shared file relayed in memory, not cached | Storing it would be the one thing this app never does with media. A lost file is rare and reported; a stored one is a broken promise. |
 
