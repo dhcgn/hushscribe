@@ -209,10 +209,10 @@
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Drop media files or browse">
       <h2>Drop media here</h2>
       <p class="m">flac · mp3 · mp4 · mpeg · mpga · m4a · ogg · wav · webm</p>
-      <p class="prose">50 MB and 1 hour per file. Nothing is uploaded until it is encrypted.</p>
+      <p class="prose">50 MB and 1 hour per file. Other formats are re-encoded in your browser first. Nothing is uploaded until it is encrypted.</p>
     </div>
     <input type="file" id="picker" multiple hidden
-           accept=".flac,.mp3,.mp4,.mpeg,.mpga,.m4a,.ogg,.wav,.webm">
+           accept="audio/*,video/*,.flac,.mp3,.mp4,.mpeg,.mpga,.m4a,.ogg,.wav,.webm,.opus,.oga,.weba,.mkv,.mov,.avi,.m4v,.aac,.wma,.aiff,.aif,.flv,.wmv">
     <div id="results"></div>
   </section>
 

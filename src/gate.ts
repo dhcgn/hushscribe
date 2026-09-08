@@ -72,7 +72,7 @@ export function gate({ name, size }: Pick<File, 'name' | 'size'>, head?: Uint8Ar
         ok: false,
         reason: 'format',
         why: ext
-          ? `.${ext} is not a supported format. Re-encoding arrives in stage 2.`
+          ? `.${ext} is not a supported format.`
           : 'That file has no extension, so its format cannot be determined.',
       };
     }
@@ -84,7 +84,7 @@ export function gate({ name, size }: Pick<File, 'name' | 'size'>, head?: Uint8Ar
     return {
       ok: false,
       reason: 'size',
-      why: `${mb(size)} MB is over the 50 MB limit. Re-encoding arrives in stage 2.`,
+      why: `${mb(size)} MB is over the 50 MB limit.`,
     };
   }
   return sendAs ? { ok: true, sendAs } : { ok: true };
