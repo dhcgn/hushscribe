@@ -23,6 +23,30 @@
       }
     },
     {
+      "label": "OpenCode: web UI",
+      "detail": "opencode web on http://localhost:4096 — VS Code forwards the port; open it from the Ports view or the notification",
+      "type": "shell",
+      // Loopback only: no exposure on the Docker network, and no IPv6 ambiguity
+      // for the forwarder. Runs until the terminal is closed. load-env.sh first:
+      // a task's `bash -c` reads no .bashrc, and the secrets live in .devcontainer/.env.
+      "command": ". .devcontainer/load-env.sh && opencode web --hostname 127.0.0.1 --port 4096",
+      // OpenCode keys its sessions to the directory it starts in: the workspace,
+      // not wherever the last terminal happened to be.
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "tools" },
+      "problemMatcher": []
+    },
+    {
+      "label": "OpenCode: check env",
+      "detail": "SET/MISSING for every {env:…} in .devcontainer/opencode.jsonc — names only, exit 1 if any is missing",
+      "type": "shell",
+      "command": ". .devcontainer/load-env.sh && bash .devcontainer/check-env.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "tools", "clear": true },
+      "problemMatcher": []
+    },
+    {
       "label": "Test: unit",
       "detail": "vitest run — the seven pure modules, no browser needed",
       "type": "npm",

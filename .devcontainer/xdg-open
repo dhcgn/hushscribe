@@ -1,0 +1,13 @@
+#!/bin/sh
+# xdg-open stand-in for the headless container (installed to /usr/local/bin by
+# on-create.sh). Tools such as `opencode web` spawn xdg-open to show a URL and
+# crash when the binary is missing.
+#
+# VS Code sets $BROWSER in its terminals and tasks to a helper that opens URLs
+# in the browser on the host, through the forwarded port. Use it when present;
+# otherwise print the URL so it can be opened by hand.
+url="${1:-}"
+if [ -n "${BROWSER:-}" ] && [ -x "$BROWSER" ]; then
+  exec "$BROWSER" "$url"
+fi
+echo "xdg-open: open this in your browser: $url"

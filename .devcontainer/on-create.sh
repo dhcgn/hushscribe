@@ -14,3 +14,8 @@ npm install -g npm@latest
 
 # Agent tooling for the container only; not a project dependency.
 npm install -g opencode-ai
+
+# `opencode web` spawns xdg-open to show its URL and dies without it. This
+# stand-in forwards to VS Code's $BROWSER helper (opens on the host) or prints
+# the URL.
+sudo install -m 0755 /workspace/.devcontainer/xdg-open /usr/local/bin/xdg-open
