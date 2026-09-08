@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Download, type Page } from '@playwright/test';
 import type { ExportFile } from '../../src/types';
 import { LINES, MEASUREMENT, PROOF_LINE, installFakeClient } from './fake-client';
-import { makeUndecodable, makeUnsupported, makeWav, webm } from './fixtures';
+import { makeOpus, makeUndecodable, makeUnsupported, makeWav, webm } from './fixtures';
 
 const KEY = 'pm-test-key';
 
 const wav = makeWav();
-const opus = makeUnsupported();
+const mkv = makeUnsupported();
+const opus = makeOpus();
 
 /** Verify the key so the dropzone becomes live. */
 async function unlock(page: Page, lang: string | null = 'en'): Promise<void> {
@@ -138,14 +139,31 @@ test.describe('transcription', () => {
     await expect(card).toContainText('Set a language to get timestamps');
   });
 
-  test('rejects an unsupported format by name, without calling the API', async ({ page }) => {
+  test('rejects an unsupported format, without calling the API', async ({ page }) => {
+    await unlock(page);
+    await page.locator('#picker').setInputFiles(mkv);
+
+    const card = page.locator('.card').first();
+    await expect(card).toHaveClass(/bad/);
+    await expect(card).toContainText('.mkv is not a supported format');
+    await expect(card.locator('.seg')).toHaveCount(0);
+    expect(await page.evaluate(() => globalThis.__HC_SENT ?? [])).toEqual([]);
+  });
+
+  // A WhatsApp voice note: .opus by name, Ogg by content. The API lists ogg, so
+  // the same bytes go through under that name — and the card says so.
+  test('relabels an .opus voice note as .ogg and says so on the card', async ({ page }) => {
     await unlock(page);
     await page.locator('#picker').setInputFiles(opus);
 
     const card = page.locator('.card').first();
-    await expect(card).toHaveClass(/bad/);
-    await expect(card).toContainText('.opus is not a supported format');
-    await expect(card.locator('.seg')).toHaveCount(0);
+    await expect(card.locator('.card-name')).toHaveText('PTT-20260908-WA0000.opus');
+    await expect(card).toContainText('Sent as PTT-20260908-WA0000.ogg');
+    await expect(card.locator('.seg')).toHaveCount(LINES.length);
+    expect(await page.evaluate(() => globalThis.__HC_SENT ?? [])).toEqual(['PTT-20260908-WA0000.ogg']);
+
+    // History keeps the name the user dropped, not the one the API saw.
+    await expect(page.locator('.hist').first().locator('.hist-name')).toHaveText('PTT-20260908-WA0000.opus');
   });
 
   test('surfaces an API failure on the card rather than silently dropping it', async ({ page }) => {

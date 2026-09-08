@@ -40,9 +40,24 @@ export function makeWav(name = 'board-meeting.wav', seconds = 12): string {
   return write(name, buf);
 }
 
-/** A file the gate must reject: .opus is not in Privatemode's supported list. */
-export function makeUnsupported(name = 'interview.opus'): string {
-  return write(name, Buffer.alloc(2048));
+/**
+ * A file the gate must reject: .mkv is not on Privatemode's list, and its bytes
+ * are a Matroska EBML header, which shares its magic number with WebM but is not
+ * WebM. Both the name and the content have to say no for this to be a real test.
+ */
+export function makeUnsupported(name = 'interview.mkv'): string {
+  const ebml = Buffer.from('1a45dfa3a34286810142f7810142f2810442f381084282886d6174726f736b61', 'hex');
+  return write(name, Buffer.concat([ebml, Buffer.alloc(2048)]));
+}
+
+/**
+ * The WhatsApp voice-note case: an Ogg page carrying an OpusHead packet, named
+ * .opus. Not on the list by name; an Ogg container by content. The first bytes are
+ * those of test-data/de_WhatsApp PTT-20260908-WA0000.opus.
+ */
+export function makeOpus(name = 'PTT-20260908-WA0000.opus'): string {
+  const ogg = Buffer.from('4f676753000200000000000000000000000000000000492af6a001134f7075734865616401013801803e0000000000', 'hex');
+  return write(name, Buffer.concat([ogg, Buffer.alloc(2048)]));
 }
 
 /** Accepted by the gate but undecodable, so no duration and no honest price. */

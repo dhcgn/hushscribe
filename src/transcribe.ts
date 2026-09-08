@@ -3,7 +3,7 @@
 import { cardHead, exportBar, segmentList } from './card';
 import type { TranscriptionResult } from './client';
 import { $, el, messageOf, note } from './dom';
-import { gate, isPlayable } from './gate';
+import { SNIFF_BYTES, extensionOf, gate, isPlayable } from './gate';
 import { pushHistory } from './history';
 import { shortHex } from './manifest';
 import { ownUrl, probeMedia } from './media';
@@ -37,23 +37,35 @@ export async function take(files: FileList | readonly File[]): Promise<void> {
   for (const file of queue) await transcribe(file);
 }
 
-async function transcribe(file: File): Promise<void> {
+async function transcribe(dropped: File): Promise<void> {
   const card = el('article', { className: 'card' });
   $('results').prepend(card);
 
-  const verdict = gate(file);
+  // The extension says what the sender called the file; the first bytes say what
+  // it is. A WhatsApp voice note is `.opus` by name and an Ogg file by content,
+  // and Ogg is on the list — so it goes through under the name the API knows,
+  // bytes untouched. Nothing is decoded or re-encoded here; that is stage 2.
+  const verdict = gate(dropped, new Uint8Array(await dropped.slice(0, SNIFF_BYTES).arrayBuffer()));
   if (!verdict.ok) {
     card.classList.add('bad');
     card.append(
-      cardHead(file.name).head,
+      cardHead(dropped.name).head,
       el('p', { className: 'note warn', textContent: verdict.why }),
     );
     return;
   }
 
-  const { head, chain } = cardHead(file.name);
+  // The card, the exports and history all keep the name the user knows.
+  const file = verdict.sendAs ? new File([dropped], verdict.sendAs, { type: dropped.type }) : dropped;
+  const { head, chain } = cardHead(dropped.name);
   chain.append(el('span', { className: 'spin' }), ' transcribing');
   card.append(head);
+  if (verdict.sendAs) {
+    card.append(el('p', {
+      className: 'note',
+      textContent: `Sent as ${verdict.sendAs}. The API does not list this extension, but the bytes are a .${extensionOf(file.name)} file, which it does. Same bytes, only the name changes.`,
+    }));
+  }
 
   // Ask the file what it contains. .webm, .mp4 and .ogg are containers that may
   // hold audio only, so the extension cannot decide between <video> and <audio> —
@@ -108,7 +120,7 @@ async function transcribe(file: File): Promise<void> {
   const segments = res.segments?.length ? res.segments : null;
   const text = segments ? toTXT(segments) : (res.text ?? '');
   const measurement = session.measurement;
-  renderResult({ card, chain, media, file, lang, measurement, segments, text });
+  renderResult({ card, chain, media, file: dropped, lang, measurement, segments, text });
 
   // Ephemeral mode stops here. The card stays on screen for as long as this tab
   // is open; nothing about it reaches disk. The guard is on the write, not the
@@ -116,7 +128,7 @@ async function transcribe(file: File): Promise<void> {
   if ($('ephemeral').checked) return;
 
   pushHistory({
-    name: file.name,
+    name: dropped.name,
     model,
     lang: lang || 'auto',
     at: new Date().toISOString(),
