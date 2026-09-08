@@ -1,0 +1,35 @@
+{
+  // Tasks run inside the dev container whenever VS Code is attached to it, so
+  // `npm` here is the container's Node 22, not the host's. Port 5173 is
+  // forwarded by .devcontainer/devcontainer.json.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Web: dev server",
+      "detail": "vite on http://localhost:5173/hushscribe/ — prefills the key from .env if present",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "web" },
+      "problemMatcher": {
+        // Tell VS Code when the server is up, so the task can be a preLaunchTask.
+        "owner": "vite",
+        "pattern": { "regexp": "^$" },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE v",
+          "endsPattern": "Local:\\s+http"
+        }
+      }
+    },
+    {
+      "label": "Test: unit",
+      "detail": "vitest run — the seven pure modules, no browser needed",
+      "type": "npm",
+      "script": "test:unit",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    }
+  ]
+}

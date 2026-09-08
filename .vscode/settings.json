@@ -1,0 +1,8 @@
+{
+  // VS Code auto-detects a "tsc: build - tsconfig.json" task for every tsconfig.
+  // The TypeScript Native Preview extension (TS 7) answers that probe without
+  // declaring the task type, which surfaces as: 'The task provider for
+  // "undefined" tasks unexpectedly provided a task of type "typescript"'.
+  // The project's type-check gate is `npm run typecheck`, so nothing is lost.
+  "typescript.tsc.autoDetect": "off"
+}

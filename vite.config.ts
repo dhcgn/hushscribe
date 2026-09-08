@@ -104,8 +104,12 @@ export default defineConfig(({ command }) => {
       ),
     },
     build: { target: 'es2022', sourcemap: true },
-    server: { port: 5173 },
-    preview: { port: 4173 },
+    /* Bind to localhost unless told otherwise. The dev container sets
+       VITE_DEV_HOST=0.0.0.0 (its "all interfaces" is only the Docker network,
+       which the port forwarder needs). Never widen this on a real machine: the
+       dev server prefills the API key from .env into the page. */
+    server: { port: 5173, host: process.env.VITE_DEV_HOST ?? 'localhost' },
+    preview: { port: 4173, host: process.env.VITE_DEV_HOST ?? 'localhost' },
     test: {
       include: ['test/*.test.ts'], // test/e2e/ belongs to Playwright
       environment: 'node',

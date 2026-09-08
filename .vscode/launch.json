@@ -1,0 +1,43 @@
+{
+  // Debugging from inside the dev container. The browser launch opens on the
+  // client side through the forwarded port; the Node debugger attaches to the
+  // container's Node 22.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Web: debug in Chrome",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5173/hushscribe/",
+      "webRoot": "${workspaceFolder}",
+      // Starts vite first and waits for its "Local:" line (see tasks.json).
+      "preLaunchTask": "Web: dev server",
+      "sourceMaps": true
+    },
+    {
+      "name": "Test: debug unit tests",
+      "type": "node",
+      "request": "launch",
+      // Node runs vitest's entry directly. Going through `npx` fails: the debugger
+      // appends Node flags to the runtime, and npm rejects them as unknown options.
+      "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+      // One worker, so breakpoints hit in the same process the debugger owns.
+      "args": ["run", "--no-file-parallelism"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "smartStep": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    },
+    {
+      "name": "Test: debug current unit test file",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+      "args": ["run", "--no-file-parallelism", "${relativeFile}"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "smartStep": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    }
+  ]
+}

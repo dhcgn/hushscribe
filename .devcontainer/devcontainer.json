@@ -1,0 +1,67 @@
+{
+  "name": "hushscribe",
+  // Node 22 line: package.json requires >= 22.12 (Vitest 5). The image ships
+  // TypeScript globally, but the project's own typescript@7 in node_modules is
+  // what `npm run typecheck` uses.
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/copilot-cli:1": {},
+    "ghcr.io/devcontainers/features/powershell:2": {
+      "version": "7.4"
+    }
+  },
+
+  // Set on the container itself, so every shell and task inherits it.
+  "containerEnv": {
+    "RTK_TELEMETRY_DISABLED": "1",
+    // Vite binds to this host (vite.config.ts). Inside the container "all
+    // interfaces" is only the Docker network, which the port forwarder reaches;
+    // a loopback-only bind is what makes the forwarded page hang. On a host
+    // machine the variable is absent and Vite keeps binding to localhost, so
+    // the .env key prefill never reaches a LAN.
+    "VITE_DEV_HOST": "0.0.0.0"
+  },
+
+  // Secrets come from .devcontainer/.env, which is gitignored (the root .gitignore
+  // ignores `.env` at any depth). Copy .env.example to .env and fill it in before
+  // the first build; Docker refuses to start without the file. post-start.sh
+  // reports which names are SET or MISSING, never their values.
+  "runArgs": ["--env-file", "${localWorkspaceFolder}/.devcontainer/.env"],
+
+  // Invoked through `bash` so a checkout that dropped the executable bit still works.
+  "onCreateCommand": "bash .devcontainer/on-create.sh",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/post-start.sh",
+
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+
+  // node_modules lives in a container-side volume, not the bind mount. TypeScript 7,
+  // Rolldown, and Playwright install platform-specific binaries; one folder cannot
+  // serve Windows and Linux at once, and `npm ci` in here once replaced the host's
+  // Windows install with Linux binaries. post-create.sh chowns the volume first.
+  "mounts": [
+    "source=hushscribe-node_modules,target=/workspace/node_modules,type=volume"
+  ],
+
+  // 5173: `npm run dev`. 4173: `npm run preview` / the Playwright web server.
+  "forwardPorts": [5173, 4173],
+  "portsAttributes": {
+    "5173": { "label": "vite dev" },
+    "4173": { "label": "vite preview (e2e)" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "TypeScriptTeam.native-preview",
+        "ms-playwright.playwright",
+        "vitest.explorer"
+      ]
+    }
+  },
+
+  "remoteUser": "node"
+}
