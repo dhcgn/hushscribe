@@ -79,6 +79,7 @@ export function createStore(backing: () => Storage): Store {
 }
 
 /** The app's store. Lazy: importing this module in Node touches nothing. */
+/* v8 ignore next -- the browser binding; Node has no localStorage for a test to reach */
 export const store: Store = createStore(() => localStorage);
 
 /**

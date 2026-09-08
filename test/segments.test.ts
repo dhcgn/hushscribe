@@ -61,6 +61,10 @@ describe('toTXT', () => {
   it('joins trimmed segment text with single spaces', () =>
     expect(toTXT(segs)).toBe('Right, let us start. The short version. And the long one.'));
   it('is empty for no segments', () => expect(toTXT([])).toBe(''));
+
+  // The type says text is a string; the API's JSON is under no such obligation.
+  it('treats a segment with no text as empty rather than throwing', () =>
+    expect(toTXT([{ start: 0, end: 1, text: null as unknown as string }])).toBe(''));
 });
 
 describe('activeIndex', () => {
@@ -73,6 +77,7 @@ describe('activeIndex', () => {
   ])('t=%s -> %s', (t, i) => expect(activeIndex(segs, t)).toBe(i));
 
   it('returns -1 for no segments', () => expect(activeIndex([], 1)).toBe(-1));
+  it('returns -1 for a missing segment list', () => expect(activeIndex(null, 1)).toBe(-1));
 });
 
 describe('promptBudget', () => {

@@ -40,7 +40,8 @@ export function probeMedia(file: File, timeoutMs = 5000): Promise<MediaProbe> {
    "Clear everything" revokes them all. */
 const objectUrls: string[] = [];
 
-export const trackUrl = (url: string): string => {
+/** Take ownership of an object URL, so revokeAll() can release it later. */
+export const ownUrl = (url: string): string => {
   objectUrls.push(url);
   return url;
 };

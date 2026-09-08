@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { expect, test, type Download, type Page } from '@playwright/test';
 import type { ExportFile } from '../../src/types';
 import { LINES, MEASUREMENT, PROOF_LINE, installFakeClient } from './fake-client';
 import { makeUndecodable, makeUnsupported, makeWav, webm } from './fixtures';
@@ -17,12 +18,8 @@ async function unlock(page: Page, lang: string | null = 'en'): Promise<void> {
 }
 
 /** The JSON a download carried. */
-async function downloaded<T>(download: { createReadStream(): Promise<NodeJS.ReadableStream> }): Promise<T> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of await download.createReadStream()) {
-    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
-  }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
+async function downloaded<T>(download: Download): Promise<T> {
+  return JSON.parse(readFileSync(await download.path(), 'utf8')) as T;
 }
 
 test.beforeEach(async ({ page }) => {

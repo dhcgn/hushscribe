@@ -6,11 +6,12 @@ import { $, el, messageOf, note } from './dom';
 import { gate, isPlayable } from './gate';
 import { pushHistory } from './history';
 import { shortHex } from './manifest';
-import { probeMedia, trackUrl } from './media';
+import { ownUrl, probeMedia } from './media';
 import { PRICES_DATED, estimateLine } from './pricing';
 import { session, verifyKey } from './proof';
 import { toTXT, toVTT } from './segments';
 import { collectShared } from './share';
+import type { Segment } from './types';
 
 /**
  * Transcribe every file, one after another: honest progress, no rate-limit
@@ -63,7 +64,7 @@ async function transcribe(file: File): Promise<void> {
   let media: HTMLMediaElement | null = null;
   if (isPlayable(file.name)) {
     media = el(probe.hasVideo ? 'video' : 'audio', {
-      src: trackUrl(URL.createObjectURL(file)),
+      src: ownUrl(URL.createObjectURL(file)),
       controls: true,
     });
     card.append(media);
@@ -106,40 +107,8 @@ async function transcribe(file: File): Promise<void> {
 
   const segments = res.segments?.length ? res.segments : null;
   const text = segments ? toTXT(segments) : (res.text ?? '');
-  // Git-style: enough to recognise, short enough not to dominate the card.
   const measurement = session.measurement;
-  chain.textContent = shortHex(measurement, 12);
-  chain.title = measurement;
-
-  // Redo re-runs this same file with whatever model, language, and prompt are
-  // selected *now* — the usual reason being a wrong language. Only offered here,
-  // never in history, because history keeps text and never the media (§5.3).
-  const redo = el('button', {
-    textContent: 'Redo',
-    title: 'Transcribe this file again with the settings currently selected above',
-  });
-  redo.dataset['act'] = 'redo';
-  redo.addEventListener('click', () => { void take([file]); });
-
-  if (segments) {
-    if (media) {
-      // The browser renders the captions; we only hand it a VTT blob.
-      media.append(el('track', {
-        src: trackUrl(URL.createObjectURL(new Blob([toVTT(segments)], { type: 'text/vtt' }))),
-        default: true,
-        kind: 'captions',
-        srclang: lang,
-        label: lang,
-      }));
-    }
-    card.append(segmentList(segments, media), exportBar(file.name, segments, redo));
-  } else {
-    card.append(
-      el('p', { className: 'plain', textContent: text }),
-      exportBar(file.name, null, redo, text),
-      el('p', { className: 'note', textContent: 'Set a language to get timestamps and captions.' }),
-    );
-  }
+  renderResult({ card, chain, media, file, lang, measurement, segments, text });
 
   // Ephemeral mode stops here. The card stays on screen for as long as this tab
   // is open; nothing about it reaches disk. The guard is on the write, not the
@@ -155,6 +124,55 @@ async function transcribe(file: File): Promise<void> {
     text,
     segments,
   });
+}
+
+interface Result {
+  card: HTMLElement;
+  chain: HTMLElement;
+  media: HTMLMediaElement | null;
+  file: File;
+  lang: string;
+  measurement: string;
+  segments: Segment[] | null;
+  text: string;
+}
+
+/** Fill a card with a finished transcript: the stamp, the text, the exports. */
+function renderResult({ card, chain, media, file, lang, measurement, segments, text }: Result): void {
+  // Git-style: enough to recognise, short enough not to dominate the card.
+  chain.textContent = shortHex(measurement, 12);
+  chain.title = measurement;
+
+  // Redo re-runs this same file with whatever model, language, and prompt are
+  // selected *now* — the usual reason being a wrong language. Only offered here,
+  // never in history, because history keeps text and never the media (§5.3).
+  const redo = el('button', {
+    textContent: 'Redo',
+    title: 'Transcribe this file again with the settings currently selected above',
+  });
+  redo.dataset['act'] = 'redo';
+  redo.addEventListener('click', () => { void take([file]); });
+
+  if (!segments) {
+    card.append(
+      el('p', { className: 'plain', textContent: text }),
+      exportBar(file.name, null, redo, text),
+      el('p', { className: 'note', textContent: 'Set a language to get timestamps and captions.' }),
+    );
+    return;
+  }
+
+  if (media) {
+    // The browser renders the captions; we only hand it a VTT blob.
+    media.append(el('track', {
+      src: ownUrl(URL.createObjectURL(new Blob([toVTT(segments)], { type: 'text/vtt' }))),
+      default: true,
+      kind: 'captions',
+      srclang: lang,
+      label: lang,
+    }));
+  }
+  card.append(segmentList(segments, media), exportBar(file.name, segments, redo));
 }
 
 /**

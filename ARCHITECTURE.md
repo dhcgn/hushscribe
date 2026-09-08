@@ -162,7 +162,7 @@ src/session.ts              # pure: verified client, measurement, refresh timer 
 src/storage.ts              # pure: typed hc.* keys, export shape, wipe        (13 unit tests)
 src/share.ts                # pure: collect a shared file from sw.js           ( 4 unit tests)
 src/gate.ts                 # pure: format + size admission                    (40 unit tests)
-src/segments.ts             # pure: VTT/SRT/text, prompt budget                (40 unit tests)
+src/segments.ts             # pure: VTT/SRT/text, prompt budget                (42 unit tests)
 src/pricing.ts              # pure: per-minute rates, estimates                (31 unit tests)
 src/manifest.ts             # pure: SNP measurement, manifest hash             (22 unit tests)
 src/proof.ts                # the session instance + the attestation row
@@ -784,8 +784,10 @@ CI, not quietly in front of a user.
 ### 6.4 What the coverage number counts
 
 `npm run coverage` measures **only the seven pure modules** — `gate`, `segments`, `pricing`,
-`manifest`, `storage`, `session`, `share` — currently 100% of lines and 98% of branches,
-with CI failing below 95/90/95/95 so the figure cannot quietly rot.
+`manifest`, `storage`, `session`, `share` — currently 100% of statements, branches, functions
+and lines, with CI failing below 95/90/95/95 so the figure cannot quietly rot. The one
+deliberately uncovered statement is the `() => localStorage` binding in `storage.ts`, marked
+`v8 ignore`: Node has no `localStorage` for a unit test to reach, and it holds no logic.
 
 The DOM modules (`main`, `proof`, `transcribe`, `card`, `history`, `prompts`, `media`,
 `dom`) are excluded on purpose. They are DOM wiring, exercised by Playwright against the real

@@ -1,4 +1,7 @@
 // Attestation: the one session this page holds, and the UI that shows its state.
+// Two jobs in one file on purpose — the session needs the build-time options only
+// this browser project can see, and nothing but this UI ever opens or closes it.
+// transcribe.ts reads `session` from here rather than through a third module.
 
 import { makeClient } from './client';
 import { $, el, messageOf, note, setKeyState } from './dom';

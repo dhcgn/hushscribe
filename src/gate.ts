@@ -3,7 +3,6 @@
 
 // https://docs.privatemode.ai/reference/speech-to-text/
 export const FORMATS = ['flac', 'mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'ogg', 'wav', 'webm'] as const;
-export type Format = (typeof FORMATS)[number];
 export const MAX_BYTES = 50 * 1024 * 1024;
 
 export const extensionOf = (name: string): string => {
