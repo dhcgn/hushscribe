@@ -13,15 +13,20 @@
   ],
   "provider": {
     "lyceum": {
-      "name": "lyceum",
+      "name": "🟢 lyceum (Sovereign EU)",
       "npm": "@ai-sdk/openai-compatible",
+      "whitelist": [
+        "moonshotai/kimi-k3",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash"
+      ],
       "options": {
         "baseURL": "https://api.lyceum.technology/openai/v1/",
         "apiKey": "{env:LYCEUM_API_KEY}"
       },
       "models": {
         "moonshotai/kimi-k3": {
-          "name": "kimi-k3",
+          "name": "💰 kimi-k3",
           "reasoning": true,
           "modalities": {
             "input": [
@@ -58,7 +63,7 @@
           }
         },
         "z-ai/glm-5.3": {
-          "name": "glm-5.3",
+          "name": "🟢 glm-5.3",
           "reasoning": true,
           "modalities": {
             "input": [
@@ -95,7 +100,7 @@
           }
         },
         "z-ai/glm-5.3-flash": {
-          "name": "glm-5.3-flash",
+          "name": "⚡ glm-5.3-flash",
           "reasoning": true,
           "modalities": {
             "input": [
@@ -134,15 +139,19 @@
       }
     },
     "meta": {
-      "name": "Meta Model API",
+      "name": "⚠️ Meta Model API (US Hyper Scaler)",
       "npm": "@ai-sdk/openai",
+      "whitelist": [
+        "muse-spark-1.3-contributor",
+        "muse-spark-1.3"
+      ],
       "options": {
         "baseURL": "https://api.meta.ai/v1",
         "apiKey": "{env:META_API_KEY}"
       },
       "models": {
         "muse-spark-1.3-contributor": {
-          "name": "muse-spark-1.3-contributor",
+          "name": "☢️ US (contrib) spark-1.3",
           "reasoning": true,
           "limit": {
             "context": 1048576,
@@ -174,7 +183,7 @@
           }
         },
         "muse-spark-1.3": {
-          "name": "muse-spark-1.3",
+          "name": "⚠️ US spark-1.3",
           "reasoning": true,
           "limit": {
             "context": 1048576,
