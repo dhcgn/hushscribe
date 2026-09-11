@@ -28,3 +28,7 @@ npm install -g opencode-ai
 # stand-in forwards to VS Code's $BROWSER helper (opens on the host) or prints
 # the URL.
 sudo install -m 0755 /workspace/.devcontainer/xdg-open /usr/local/bin/xdg-open
+
+# Installing the Agent Package Manager
+# https://microsoft.github.io/apm/getting-started/installation/
+curl -sSL https://aka.ms/apm-unix | sh

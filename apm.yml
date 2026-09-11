@@ -1,6 +1,6 @@
-name: browserbased-tee-encryption
+name: hushscribe
 version: 1.0.0
-description: APM project for browserbased-tee-encryption
+description: APM project for hushscribe
 author: Daniel
 # Which agent platforms to deploy to.
 # Resolution order: --target flag > this field > auto-detect from filesystem.
@@ -9,7 +9,7 @@ targets:
   - opencode
 dependencies:
   apm:
-    - dhcgn/personal-dev-skills/profiles/go-dev
+    - dhcgn/personal-dev-skills/profiles/dev-web
   mcp: []
 includes: auto
 scripts: {}
