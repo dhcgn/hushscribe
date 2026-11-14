@@ -1,7 +1,7 @@
 name: Deploy to GitHub Pages
 
 # Releases only. A commit on main is not a version, so it does not get published
-# — tag it and write the release notes, and that tag is what the site reports.
+# — tag it and generate release notes, and that tag is what the site reports.
 # Pull requests get a throwaway copy under /pr/<n>/ so a change can be clicked
 # through before it is tagged.
 on:
@@ -167,3 +167,56 @@ jobs:
           body="Preview of this PR: $URL"
           if [ "$ACTION" = closed ]; then body='Preview removed.'; fi
           gh pr comment "$PR" --edit-last --body "$body" || gh pr comment "$PR" --body "$body"
+
+  release-notes:
+    # A manual redeploy must never rewrite an existing release.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find the previous version tag
+        id: previous
+        run: |
+          previous=$(git describe --tags --match 'v*' --abbrev=0 "${GITHUB_SHA}^") || {
+            echo "::error::No previous version tag found; create this release manually."
+            exit 1
+          }
+          echo "tag=$previous" >> "$GITHUB_OUTPUT"
+
+      - name: Check Copilot token
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$COPILOT_GITHUB_TOKEN" ]; then
+            echo "::error::Set the COPILOT_GITHUB_TOKEN secret to a Copilot-enabled fine-grained PAT."
+            exit 1
+          fi
+
+      - name: Generate release notes
+        id: notes
+        uses: github/copilot-release-notes@1e8b8815c67565352970c33f8f881679cbdf114b
+        with:
+          base-ref: ${{ steps.previous.outputs.tag }}
+          head-ref: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          NOTES: ${{ steps.notes.outputs.release-notes }}
+        run: |
+          if [ -z "$NOTES" ]; then
+            echo "::error::No release notes were generated; create the release manually."
+            exit 1
+          fi
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes "$NOTES"
