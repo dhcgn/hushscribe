@@ -285,7 +285,9 @@ Release note generation requires a repository or organization secret named
 Read** permission, owned by a user with an active Copilot license. The action compares
 the new tag with the nearest preceding `v*` tag in its history and summarizes merged
 PRs, not direct commits. Review its output, especially entries marked for review. If
-there is no previous tag or no notes are generated, create the release manually; the
+Copilot produces no notes (e.g. only direct pushes since the previous tag), the
+workflow falls back to GitHub's commit-based notes. If there is no previous tag,
+create the release manually; the
 site deployment is unaffected. Existing releases are never overwritten.
 
 **Every pull request gets a preview** at `…/hushscribe/pr/<n>/`, posted as a comment on
