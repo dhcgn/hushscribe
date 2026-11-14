@@ -268,16 +268,25 @@ only deleting the stored copy.
 
 Live at **[dhcgn.github.io/hushscribe](https://dhcgn.github.io/hushscribe/)**.
 
-**Only tagged releases publish.** A commit on `main` is not a version. Cut one and the
-tag becomes what the site reports:
+**Only tagged releases publish.** A commit on `main` is not a version. Push a version
+tag to deploy the site and create a GitHub release with Copilot-generated notes:
 
 ```bash
-gh release create v1.2.0 --generate-notes
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 The footer shows that tag and links to its release notes, so the page always says which
 build you are looking at. Untagged builds — local, PR previews — say so instead of
 claiming a version they do not have.
+
+Release note generation requires a repository or organization secret named
+`COPILOT_GITHUB_TOKEN`: a fine-grained personal access token with **Copilot Requests:
+Read** permission, owned by a user with an active Copilot license. The action compares
+the new tag with the nearest preceding `v*` tag in its history and summarizes merged
+PRs, not direct commits. Review its output, especially entries marked for review. If
+there is no previous tag or no notes are generated, create the release manually; the
+site deployment is unaffected. Existing releases are never overwritten.
 
 **Every pull request gets a preview** at `…/hushscribe/pr/<n>/`, posted as a comment on
 the PR and deleted when it closes. Previews skip the coverage gate (CI already ran it on
