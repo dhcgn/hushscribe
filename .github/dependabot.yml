@@ -1,0 +1,18 @@
+# Only privatemode-ai is watched: it carries the attestation verifier plus its
+# pinned hash, so an update is a trust-relevant change that deserves its own
+# PR — and the full e2e suite runs on it like on any other PR. Everything
+# else stays manual (`npm-check-updates`), so a drive-by minor in the
+# toolchain can never piggyback on a security-relevant SDK bump.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    allow:
+      - dependency-name: "privatemode-ai"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
