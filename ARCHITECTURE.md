@@ -542,8 +542,8 @@ a question, and it stops needing to be asked once answered.
 **The header status chip stays in both views.** An earlier pass hid it in compact as a
 duplicate of the proof row, which was wrong: the header is `position: sticky`, so once the
 results scroll past, the chip is the *only* place `unverified` / `sealed` is still on screen.
-The proof row is the detail; the chip is the persistent indicator. Compact only shrinks it. A
-test scrolls to the footer and asserts the chip is still in the viewport.
+The proof row is the detail; the chip is the persistent indicator, at the same size
+in both views. A test scrolls to the footer and asserts the chip is still in the viewport.
 
 **What compact never hides:** the wrong-language warning, the per-minute rate, the
 attestation row, and any error. `prose` marks explanation, not anything a user needs in order
