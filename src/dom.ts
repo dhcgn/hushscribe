@@ -32,6 +32,12 @@ export interface Ids {
   delPrompt: HTMLButtonElement;
   drop: HTMLDivElement;
   picker: HTMLInputElement;
+  recStart: HTMLButtonElement;
+  recStop: HTMLButtonElement;
+  recCancel: HTMLButtonElement;
+  recWave: HTMLCanvasElement;
+  recTime: HTMLParagraphElement;
+  recNote: HTMLParagraphElement;
   results: HTMLDivElement;
   ephemeral: HTMLInputElement;
   history: HTMLDivElement;

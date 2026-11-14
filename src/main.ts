@@ -8,6 +8,10 @@ import { download, revokeAll } from './media';
 import { PRICES_DATED, rateLabel } from './pricing';
 import { deletePrompt, pickPrompt, renderCount, renderPrompts, savePrompt } from './prompts';
 import { endSession, renderProof, verifyKey } from './proof';
+import {
+  formatElapsed, pickRecordingTarget, recordingFileName, startMeter,
+  type Meter,
+} from './record';
 import { K, buildExport, store, wipe } from './storage';
 import { take, takeShared } from './transcribe';
 
@@ -87,6 +91,145 @@ drop.addEventListener('drop', (e) => { void take(e.dataTransfer?.files ?? []); }
 // A file dropped outside the zone would otherwise navigate away and lose the page.
 addEventListener('dragover', (e) => e.preventDefault());
 addEventListener('drop', (e) => e.preventDefault());
+
+/* ═══ record ═══════════════════════════════════════════════════════════════ */
+/* Audio-only. The recording becomes a File and goes through take(), so the
+   gate, pricing, encryption, card, and history all behave exactly as for a
+   dropped file. The waveform is a local visualisation only. */
+{
+  const recSupported = !!navigator.mediaDevices?.getUserMedia && 'MediaRecorder' in window;
+  if (!recSupported) {
+    $('recStart').disabled = true;
+    $('recStart').title = 'This browser cannot record audio.';
+  }
+
+  let stream: MediaStream | null = null;
+  let recorder: MediaRecorder | null = null;
+  let chunks: Blob[] = [];
+  let target = { mimeType: '', ext: 'webm' };
+  let audioCtx: AudioContext | null = null;
+  let meter: Meter | null = null;
+  let timer = 0;
+  let startedAt = 0;
+  let lastSoundAt = 0;
+
+  const showNote = (msg: string): void => {
+    $('recNote').textContent = msg;
+    $('recNote').hidden = !msg;
+  };
+
+  const setRecordingUI = (recording: boolean): void => {
+    $('recStart').hidden = recording;
+    $('recStop').hidden = !recording;
+    $('recCancel').hidden = !recording;
+    $('recWave').hidden = !recording;
+    $('recTime').hidden = !recording;
+  };
+
+  const cleanup = (): void => {
+    meter?.stop();
+    meter = null;
+    if (audioCtx) {
+      void audioCtx.close().catch(() => { /* already closed */ });
+      audioCtx = null;
+    }
+    stream?.getTracks().forEach((t) => t.stop());
+    stream = null;
+    recorder = null;
+    clearInterval(timer);
+  };
+
+  const recError = (e: unknown): string => {
+    if (e instanceof DOMException) {
+      if (e.name === 'NotAllowedError') return 'Microphone blocked — allow access in the browser and try again.';
+      if (e.name === 'NotFoundError') return 'No microphone found on this device.';
+    }
+    return `Could not record: ${e instanceof Error ? e.message : String(e)}`;
+  };
+
+  $('recStart').addEventListener('click', () => {
+    if (!recSupported || recorder) return;
+    void (async () => {
+      showNote('');
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        showNote(recError(e));
+        return;
+      }
+      const isSupported = (t: string): boolean => {
+        try {
+          return MediaRecorder.isTypeSupported(t);
+        } catch {
+          return false;
+        }
+      };
+      target = pickRecordingTarget(isSupported);
+      try {
+        recorder = new MediaRecorder(stream, target.mimeType ? { mimeType: target.mimeType } : undefined);
+      } catch (e) {
+        showNote(recError(e));
+        cleanup();
+        return;
+      }
+      chunks = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size) chunks.push(e.data);
+      };
+      recorder.start();
+
+      // Waveform: created on the click gesture, so the AudioContext starts running.
+      try {
+        audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
+        lastSoundAt = performance.now();
+        meter = startMeter(audioCtx, source, $('recWave'), (level) => {
+          if (level > 0.02) lastSoundAt = performance.now();
+          else if (performance.now() - lastSoundAt > 3000) {
+            showNote('Mic sounds silent — check the input is not muted.');
+          }
+        });
+      } catch {
+        meter = null; // recording works without the trace
+      }
+
+      startedAt = Date.now();
+      $('recTime').textContent = '0:00';
+      timer = window.setInterval(() => {
+        $('recTime').textContent = formatElapsed(Date.now() - startedAt);
+      }, 500);
+      setRecordingUI(true);
+    })();
+  });
+
+  const finishRecording = (): Promise<Blob | null> => new Promise((resolve) => {
+    const r = recorder;
+    if (!r || r.state === 'inactive') return resolve(null);
+    r.onstop = () => resolve(new Blob(chunks, { type: r.mimeType || target.mimeType }));
+    r.stop();
+  });
+
+  $('recStop').addEventListener('click', () => {
+    void (async () => {
+      const blob = await finishRecording();
+      const mime = recorder?.mimeType || target.mimeType;
+      cleanup();
+      setRecordingUI(false);
+      if (!blob || !blob.size) {
+        showNote('Nothing was recorded.');
+        return;
+      }
+      showNote('');
+      await take([new File([blob], recordingFileName(target.ext), { type: mime })]);
+    })();
+  });
+
+  $('recCancel').addEventListener('click', () => {
+    cleanup();
+    setRecordingUI(false);
+    showNote('Recording discarded.');
+  });
+}
 
 /* ═══ prompts ══════════════════════════════════════════════════════════════ */
 $('prompt').addEventListener('input', renderCount);

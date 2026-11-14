@@ -213,6 +213,17 @@
     </div>
     <input type="file" id="picker" multiple hidden
            accept="audio/*,video/*,.flac,.mp3,.mp4,.mpeg,.mpga,.m4a,.ogg,.wav,.webm,.opus,.oga,.weba,.mkv,.mov,.avi,.m4v,.aac,.wma,.aiff,.aif,.flv,.wmv">
+    <div class="rec">
+      <div class="row">
+        <button id="recStart" type="button">Record audio</button>
+        <button id="recStop" type="button" class="primary" hidden>Stop &amp; transcribe</button>
+        <button id="recCancel" type="button" hidden>Cancel</button>
+      </div>
+      <canvas id="recWave" class="rec-wave" width="560" height="96" hidden
+              aria-label="Microphone level over time"></canvas>
+      <p class="note" id="recTime" hidden>0:00</p>
+      <p class="note warn" id="recNote" hidden></p>
+    </div>
     <div id="results"></div>
   </section>
 
