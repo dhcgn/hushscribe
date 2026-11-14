@@ -65,16 +65,19 @@ npm run build      # -> dist/
 the last tag, and the footer says which one and links to its notes.
 
 ```bash
-npm test                                   # green before you tag anything
-gh release create v0.2.0 --generate-notes  # tag + notes — this is the deploy trigger
-gh run watch                               # deploy.yml, ~2 min
+npm test                  # green before you tag anything
+git tag v0.2.0            # tag only — the release itself is created by CI
+git push origin v0.2.0    # this is the deploy trigger
+gh run watch              # deploy.yml, ~2 min
 ```
 
-Create the tag *through* `gh release create`. A bare `git push --tags` deploys just the
-same, but the footer's link then points at a release page that does not exist.
-`--generate-notes` writes the notes from the PRs merged since the last tag; use
-`--notes-file`/`--draft` to write them yourself, and `gh workflow run deploy.yml --ref
-v0.2.0` to re-publish a tag unchanged.
+Push *only the tag*, never `gh release create`. The tag push triggers
+deploy.yml, which publishes the site and then creates the GitHub release
+itself (Copilot-generated notes since the previous tag). Creating the
+release manually first makes that job fail: it refuses to overwrite an
+existing release. A bare `git push --tags` deploys just the same, but pushes
+every local tag — name the one you mean. To re-publish a tag unchanged, use
+`gh workflow run deploy.yml --ref v0.2.0`.
 
 Every PR publishes a throwaway copy to `…/hushscribe/pr/<n>/`, commented on the PR and
 deleted when it closes. Fork PRs get none: their `GITHUB_TOKEN` is read-only.
