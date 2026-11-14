@@ -314,8 +314,16 @@ if ('serviceWorker' in navigator && !import.meta.env.DEV) {
 }
 
 /* The version stamp in the footer, so the page can say which build you are
-   looking at and link to its release notes (or, for a preview, its PR). */
-Object.assign($('version'), { textContent: __APP_VERSION__, href: __APP_VERSION_URL__ });
+   looking at and link to its release notes (or, for a preview, its PR) —
+   plus the bundled SDK version, linked to its exact npm page. */
+Object.assign($('version'), {
+  textContent: `hushscribe ${__APP_VERSION__}`,
+  href: __APP_VERSION_URL__,
+});
+Object.assign($('sdkVersion'), {
+  textContent: `privatemode-ai ${__PRIVATEMODE_VERSION__}`,
+  href: `https://www.npmjs.com/package/privatemode-ai/v/${__PRIVATEMODE_VERSION__}`,
+});
 
 setView(store.load(K.view, 'comfortable'));
 keyState();

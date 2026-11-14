@@ -123,6 +123,14 @@ function cspMeta(): Plugin {
   };
 }
 
+/** The installed privatemode-ai version — what the bundle actually calls. */
+function privatemodeVersion(): string {
+  const pkg = fileURLToPath(
+    new URL('node_modules/privatemode-ai/package.json', import.meta.url),
+  );
+  return (JSON.parse(readFileSync(pkg, 'utf8')) as { version: string }).version;
+}
+
 export default defineConfig(({ command }) => {
   /* The dev key prefill. Read explicitly rather than through VITE_*, so .env
      keeps one unprefixed name that the smoke suite reads too — and so this
@@ -149,6 +157,8 @@ export default defineConfig(({ command }) => {
       __APP_VERSION_URL__: JSON.stringify(
         process.env.APP_VERSION_URL ?? 'https://github.com/dhcgn/hushscribe/releases',
       ),
+      // The SDK version actually bundled — the range in package.json is not it.
+      __PRIVATEMODE_VERSION__: JSON.stringify(privatemodeVersion()),
     },
     build: { target: 'es2022', sourcemap: true },
     /* Bind to localhost unless told otherwise. The dev container sets

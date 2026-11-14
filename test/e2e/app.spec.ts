@@ -849,3 +849,17 @@ test('a key in the fragment is never taken without asking', async ({ page }) => 
   expect(page.url()).not.toContain('someone-elses');
 });
 
+test('footer names the app build and the bundled SDK version, both linked', async ({ page }) => {
+  await expect(page.locator('#version')).toHaveText(/^hushscribe \S+/);
+  await expect(page.locator('#version')).toHaveAttribute('href', /github\.com\/dhcgn\/hushscribe/);
+
+  const sdk = page.locator('#sdkVersion');
+  await expect(sdk).toHaveText(/^privatemode-ai \d+\.\d+\.\d+$/);
+  // The versioned npm URL must name the same version the text shows.
+  const text = (await sdk.textContent())?.replace('privatemode-ai ', '') ?? '';
+  await expect(sdk).toHaveAttribute(
+    'href',
+    `https://www.npmjs.com/package/privatemode-ai/v/${text}`,
+  );
+});
+

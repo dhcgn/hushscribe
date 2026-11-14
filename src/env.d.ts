@@ -9,3 +9,5 @@ declare const __DEV_API_KEY__: string;
 declare const __APP_VERSION__: string;
 /** Where the footer's version link goes: release notes for a tag, the PR for a preview. */
 declare const __APP_VERSION_URL__: string;
+/** The bundled privatemode-ai version, read from its installed package.json. */
+declare const __PRIVATEMODE_VERSION__: string;

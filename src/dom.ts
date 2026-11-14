@@ -48,6 +48,7 @@ export interface Ids {
   dataNote: HTMLParagraphElement;
   keyWarn: HTMLParagraphElement;
   version: HTMLAnchorElement;
+  sdkVersion: HTMLAnchorElement;
 }
 
 export const $ = <K extends keyof Ids>(id: K): Ids[K] => {
