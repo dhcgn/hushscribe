@@ -28,7 +28,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "openai": "^7.57.0",
-    "privatemode-ai": "^1.63.0"
+    "privatemode-ai": "^1.64.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
